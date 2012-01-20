@@ -37,6 +37,7 @@
 #include <linux/quotaops.h>
 #include <linux/seq_file.h>
 #include <linux/log2.h>
+#include <linux/cleancache.h>
 
 #include <asm/uaccess.h>
 
@@ -735,7 +736,7 @@ static int bdev_try_to_free_page(struct super_block *sb, struct page *page,
 	if (!page_has_buffers(page))
 		return 0;
 	if (journal)
-		return journal_try_to_free_buffers(journal, page,
+		return journal_try_to_free_buffers(journal, page, 
 						   wait & ~__GFP_WAIT);
 	return try_to_free_buffers(page);
 }
@@ -1362,6 +1363,7 @@ static int ext3_setup_super(struct super_block *sb, struct ext3_super_block *es,
 	} else {
 		ext3_msg(sb, KERN_INFO, "using internal journal");
 	}
+	cleancache_init_fs(sb);
 	return res;
 }
 

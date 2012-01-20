@@ -34,6 +34,7 @@
 #include <linux/hardirq.h> /* for BUG_ON(!in_atomic()) only */
 #include <linux/memcontrol.h>
 #include <linux/mm_inline.h> /* for page_is_file_cache() */
+#include <linux/cleancache.h>
 #include "internal.h"
 
 /*
@@ -118,6 +119,16 @@
 void __remove_from_page_cache(struct page *page)
 {
 	struct address_space *mapping = page->mapping;
+	
+	/*
+	* if we're uptodate, flush out into the cleancache, otherwise
+	* invalidate any existing cleancache entries. We can't leave
+	* stale data around in the cleancache once our page is gone
+	*/
+	if (PageUptodate(page) && PageMappedToDisk(page))
+	cleancache_put_page(page);
+	else
+	cleancache_flush_page(mapping, page);
 
 	radix_tree_delete(&mapping->page_tree, page->index);
 	page->mapping = NULL;
@@ -1411,7 +1422,7 @@ SYSCALL_ALIAS(sys_readahead, SyS_readahead);
 static int page_cache_read(struct file *file, pgoff_t offset)
 {
 	struct address_space *mapping = file->f_mapping;
-	struct page *page;
+	struct page *page; 
 	int ret;
 
 	do {
@@ -1428,7 +1439,7 @@ static int page_cache_read(struct file *file, pgoff_t offset)
 		page_cache_release(page);
 
 	} while (ret == AOP_TRUNCATED_PAGE);
-
+		
 	return ret;
 }
 
@@ -2328,7 +2339,7 @@ generic_file_buffered_write(struct kiocb *iocb, const struct iovec *iov,
 		written += status;
 		*ppos = pos + status;
   	}
-
+	
 	return written ? written : status;
 }
 EXPORT_SYMBOL(generic_file_buffered_write);

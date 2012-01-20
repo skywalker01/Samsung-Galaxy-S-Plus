@@ -30,6 +30,7 @@
 #include <linux/idr.h>
 #include <linux/mutex.h>
 #include <linux/backing-dev.h>
+#include <linux/cleancache.h>
 #include "internal.h"
 
 
@@ -95,6 +96,7 @@ static struct super_block *alloc_super(struct file_system_type *type)
 		s->s_maxbytes = MAX_NON_LFS;
 		s->s_op = &default_op;
 		s->s_time_gran = 1000000000;
+		s->cleancache_poolid = -1;
 	}
 out:
 	return s;
@@ -157,6 +159,7 @@ void deactivate_locked_super(struct super_block *s)
 {
 	struct file_system_type *fs = s->s_type;
 	if (atomic_dec_and_test(&s->s_active)) {
+		cleancache_flush_fs(s);
 		fs->kill_sb(s);
 		put_filesystem(fs);
 		put_super(s);
@@ -322,7 +325,7 @@ retry:
 			return ERR_PTR(-ENOMEM);
 		goto retry;
 	}
-
+		
 	err = set(s, data);
 	if (err) {
 		spin_unlock(&sb_lock);
@@ -422,7 +425,7 @@ void iterate_supers(void (*f)(struct super_block *, void *), void *arg)
 /**
  *	get_super - get the superblock of a device
  *	@bdev: device to get the superblock for
- *
+ *	
  *	Scans the superblock list and finds the superblock of the file system
  *	mounted on the device given. %NULL is returned if no match is found.
  */
@@ -489,7 +492,7 @@ restart:
 	spin_unlock(&sb_lock);
 	return NULL;
 }
-
+ 
 struct super_block *user_get_super(dev_t dev)
 {
 	struct super_block *sb;
