@@ -17,14 +17,14 @@
 void fsa9480_change_path_to_audio(u8 enable);
 
 /*
-  * FSA9480 Register definition                                                                           
+  * FSA9480 Register definition
 */
 /* DEVICE ID Register*/
-#define REGISTER_DEVICEID			0x01     
+#define REGISTER_DEVICEID			0x01
 /* CONTROL Register*/
-#define REGISTER_CONTROL			0x02   
-#define REGISTER_INTERRUPT1		0x03  
-#define REGISTER_INTERRUPT2		0x04   
+#define REGISTER_CONTROL			0x02
+#define REGISTER_INTERRUPT1		0x03
+#define REGISTER_INTERRUPT2		0x04
 #define REGISTER_INTERRUPTMASK1	0x05
 #define REGISTER_INTERRUPTMASK2	0x06
 #define REGISTER_ADC				0x07
@@ -40,11 +40,11 @@ void fsa9480_change_path_to_audio(u8 enable);
 #define REGISTER_CARKITMASK1		0x11
 #define REGISTER_CARKITMASK2		0x12
 /* Manual SW1 Register*/
-#define REGISTER_MANUALSW1		0x13                       
+#define REGISTER_MANUALSW1		0x13
 /* Manual SW2 Register */
-#define REGISTER_MANUALSW2		0x14                   
+#define REGISTER_MANUALSW2		0x14
 /* Hidden Register*/
-#define HIDDEN_REGISTER_MANUAL_OVERRDES1	0x1B     
+#define HIDDEN_REGISTER_MANUAL_OVERRDES1	0x1B
 
 //CR2 : Control Register
 #define INT_MASK				(0x1 << 0)
@@ -172,7 +172,7 @@ void fsa9480_change_path_to_audio(u8 enable);
 typedef enum
 {
 	DOCK_REMOVED			         = 0x0,
-	DESK_DOCK_CONNECTED		= 0x01 << 0,	
+	DESK_DOCK_CONNECTED		= 0x01 << 0,
 	CAR_DOCK_CONNECTED		= 0x01 << 1,
 }USB_DOCK_TYPE;
 #endif

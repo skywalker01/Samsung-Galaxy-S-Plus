@@ -70,16 +70,16 @@ typedef struct dhd_ioctl {
 #define DHD_TRACE_VAL	0x0002
 #define DHD_INFO_VAL	0x0004
 #define DHD_DATA_VAL	0x0008
-#define DHD_CTL_VAL		0x0010
+#define DHD_CTL_VAL	0x0010
 #define DHD_TIMER_VAL	0x0020
 #define DHD_HDRS_VAL	0x0040
 #define DHD_BYTES_VAL	0x0080
 #define DHD_INTR_VAL	0x0100
-#define DHD_LOG_VAL		0x0200
+#define DHD_LOG_VAL	0x0200
 #define DHD_GLOM_VAL	0x0400
 #define DHD_EVENT_VAL	0x0800
-#define DHD_BTA_VAL		0x1000
-#define DHD_ISCAN_VAL 	0x2000
+#define DHD_BTA_VAL	0x1000
+#define DHD_ISCAN_VAL 0x2000
 
 #ifdef SDTEST
 /* For pktgen iovar */

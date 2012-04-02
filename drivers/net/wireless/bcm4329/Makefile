@@ -1,9 +1,11 @@
 EXTRA_CFLAGS += -Dlinux -DLINUX -DBDC -DBCMDRIVER -DBCMDONGLEHOST -DDHDTHREAD -DBCMWPA2 \
     -DDHD_GPL -DDHD_SCHED -DBCMSDIO -DBCMLXSDMMC -DBCMPLATFORM_BUS -DDHD_BCMEVENTS      \
-    -DSHOW_EVENTS -DANDROID_SPECIFIC -DENABLE_DEEP_SLEEP
+    -DSHOW_EVENTS -DANDROID_SPECIFIC -DENABLE_DEEP_SLEEP -DUNRELEASEDCHIP -DDHD_SDALIGN=64 \
+    -DMAX_HDR_READ=64 -DDHD_FIRSTREAD=64 -DTOE -DSET_RANDOM_MAC_SOFTAP  -DPNO_SUPPORT \
+    -DCUSTOMER_HW2 -DMMC_SDIO_ABORT -DDHD_DEBUG_TRAP -DGET_CUSTOM_MAC_ENABLE -DKEEP_ALIVE
 
 ################ OPTIONAL FEATURES ############################################################
-#TO ENALBLE OPTIONAL FEATURES UNCOMMENT THE CORRESPONDING FLAGS
+#TO ENABLE OPTIONAL FEATURES UNCOMMENT THE CORRESPONDING FLAGS
 
 # For Samsung Aries only.
 EXTRA_CFLAGS += -DCUSTOMER_HW_SAMSUNG
@@ -46,7 +48,7 @@ EXTRA_CFLAGS += -DEMBEDDED_PLATFORM
 
 EXTRA_CFLAGS += -DARP_OFFLOAD_SUPPORT
 EXTRA_CFLAGS += -DPKT_FILTER_SUPPORT
-#Disable TPC feature for FCC 
+#Disable TPC feature for FCC
 #EXTRA_CFLAGS += -DFCC_CERT
 
 #Disable PowerSave mode for OTA or certification test
@@ -107,12 +109,13 @@ dhd-y := src/dhd/sys/dhd_linux.o \
          src/bcmsdio/sys/bcmsdh_linux.o \
          src/bcmsdio/sys/bcmsdh_sdmmc_linux.o \
          src/wl/sys/wl_iw.o
+
 all:
 	@echo "$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules"
 	@$(MAKE) --no-print-directory -C $(KDIR) \
 		SUBDIRS=$(CURDIR) modules
 
-clean: 
+clean:
 	rm -rf *.o *.o.cmd *.ko *.mod.c *~ .*.cmd Module.symvers modules.order .tmp_versions	\
  	 src/dhd/sys/dhd_linux.o \
          src/dhd/sys/dhd_common.o \
@@ -151,7 +154,7 @@ clean:
          src/bcmsdio/sys/.bcmsdh.o.cmd \
          src/bcmsdio/sys/.bcmsdh_linux.o.cmd \
          src/bcmsdio/sys/.bcmsdh_sdmmc_linux.o.cmd \
-         src/wl/sys/.wl_iw.o.cmd
+        src/wl/sys/.wl_iw.o.cmd
 
 install:
 	@$(MAKE) --no-print-directory -C $(KDIR) \

@@ -1747,6 +1747,7 @@ int mdp4_overlay_get(struct fb_info *info, struct mdp_overlay *req)
 #define OVERLAY_VGA_SIZE	0x04B000
 #define OVERLAY_720P_SIZE	0x0E1000
 #define OVERLAY_720P_TILE_SIZE  0x0E6000
+#define OVERLAY_WSVGA_SIZE 0x98000 /* 1024x608, align 600 to 32bit */
 #define OVERLAY_PERF_LEVEL1	1
 #define OVERLAY_PERF_LEVEL2	2
 #define OVERLAY_PERF_LEVEL3	3

@@ -87,10 +87,10 @@ static struct snddev_icodec_data snddev_iearpiece_data = {
 	.default_sample_rate = 48000,
 	.pamp_on = NULL,
 	.pamp_off = NULL,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1700,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1700
+	.max_voice_rx_vol[VOC_NB_INDEX] = 1000,//-200
+	.min_voice_rx_vol[VOC_NB_INDEX] = -200, //-1700
+	.max_voice_rx_vol[VOC_WB_INDEX] = 1000, //-200
+	.min_voice_rx_vol[VOC_WB_INDEX] = -500 //-1700
 };
 
 static struct platform_device msm_iearpiece_device = {
@@ -1063,10 +1063,10 @@ static struct snddev_icodec_data snddev_iearpiece_ffa_data = {
 	.default_sample_rate = 48000,
 	.pamp_on = NULL,
 	.pamp_off = NULL,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -700,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -2200,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -1400,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -2900,
+	.max_voice_rx_vol[VOC_NB_INDEX] = 1000, //-700
+	.min_voice_rx_vol[VOC_NB_INDEX] = -500, //-2200
+	.max_voice_rx_vol[VOC_WB_INDEX] = 1000, //-1400
+	.min_voice_rx_vol[VOC_WB_INDEX] = -500, //-2900
 };
 
 static struct platform_device msm_iearpiece_ffa_device = {
@@ -1247,10 +1247,10 @@ static struct snddev_icodec_data snddev_fluid_iearpiece_rx_data = {
 	.default_sample_rate = 48000,
 	.pamp_on = &msm_snddev_poweramp_on_speaker,
 	.pamp_off = &msm_snddev_poweramp_off_speaker,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -500,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1000,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -500,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1000,
+	.max_voice_rx_vol[VOC_NB_INDEX] = 600,  // -500
+	.min_voice_rx_vol[VOC_NB_INDEX] = -200, // -1000
+	.max_voice_rx_vol[VOC_WB_INDEX] = 600,  // -500
+	.min_voice_rx_vol[VOC_WB_INDEX] = -200, // -1000
 };
 
 static struct platform_device msm_fluid_iearpeice_rx_device = {
@@ -1999,10 +1999,10 @@ static struct snddev_icodec_data handset_rx_data = {
 	.default_sample_rate = 48000,
 	.pamp_on = NULL,
 	.pamp_off = NULL,
-	.max_voice_rx_vol[VOC_NB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_NB_INDEX] = -1700,
-	.max_voice_rx_vol[VOC_WB_INDEX] = -200,
-	.min_voice_rx_vol[VOC_WB_INDEX] = -1700
+	.max_voice_rx_vol[VOC_NB_INDEX] = -700,  // -200
+	.min_voice_rx_vol[VOC_NB_INDEX] = -1700, // -1700
+	.max_voice_rx_vol[VOC_WB_INDEX] = -700,  // -200
+	.min_voice_rx_vol[VOC_WB_INDEX] = -1300  // -1700
 };
 static enum hsed_controller handset_tx_pmctl_id[] = {PM_HSED_CONTROLLER_0};
 static struct snddev_icodec_data handset_tx_data = {

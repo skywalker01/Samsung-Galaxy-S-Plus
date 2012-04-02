@@ -343,7 +343,6 @@ struct lpa_drv *lpa_get(void)
 	}
 
 	lpa_enable_interrupt(ret_lpa, ret_lpa->dsp_proc_id);
-
 	the_lpa_state.assigned++;
 error:
 	mutex_unlock(&the_lpa_state.lpa_lock);

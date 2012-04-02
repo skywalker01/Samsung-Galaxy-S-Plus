@@ -28,6 +28,7 @@
 #include <sound/minors.h>
 #include <sound/info.h>
 #include <sound/control.h>
+#include "../../arch/arm/mach-msm/pm.h"
 
 /* max number of user-defined controls */
 #define MAX_USER_CONTROLS	32
@@ -599,7 +600,7 @@ static int snd_ctl_elem_list(struct snd_card *card,
 	space = list.space;
 	first = 0;
 	/* try limit maximum space */
-	if (space > 16384)
+	if (space > 65535)
 		return -ENOMEM;
 	if (space > 0) {
 		/* allocate temporary buffer for atomic operation */

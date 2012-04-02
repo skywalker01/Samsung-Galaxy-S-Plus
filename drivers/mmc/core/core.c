@@ -492,6 +492,8 @@ int mmc_host_disable(struct mmc_host *host)
 
 	if (!host->enabled)
 		return 0;
+	if (host->rescan_disable != 0)
+		return 0;
 
 	err = mmc_host_do_disable(host, 0);
 	return err;
@@ -1368,20 +1370,31 @@ int mmc_suspend_host(struct mmc_host *host)
 
 	mmc_bus_get(host);
 	if (host->bus_ops && !host->bus_dead) {
-		if (host->bus_ops->suspend)
-			err = host->bus_ops->suspend(host);
-		if (err == -ENOSYS || !host->bus_ops->resume) {
-			/*
-			 * We simply "remove" the card in this case.
-			 * It will be redetected on resume.
-			 */
-			if (host->bus_ops->remove)
-				host->bus_ops->remove(host);
-			mmc_claim_host(host);
-			mmc_detach_bus(host);
-			mmc_release_host(host);
-			host->pm_flags = 0;
-			err = 0;
+	    if (!(host->card && mmc_card_sdio(host->card)))
+	      if (!mmc_try_claim_host(host))
+       err = -EBUSY;
+	    if (!err) {
+	      if (host->bus_ops->suspend)
+	      err = host->bus_ops->suspend(host);
+	      if (!(host->card && mmc_card_sdio(host->card)))
+	        mmc_do_release_host(host);
+	      if (err == -ENOSYS || !host->bus_ops->resume) {
+        /*
+         * We simply "remove" the card in this case.
+         * It will be redetected on resume.
+         */
+        if (host->bus_ops->remove)
+        host->bus_ops->remove(host);
+        mmc_claim_host(host);
+        mmc_detach_bus(host);
+        mmc_power_off(host);
+        mmc_release_host(host);
+        host->pm_flags = 0;
+        err = 0;
+
+      }
+
+
 		}
 	}
 	mmc_bus_put(host);

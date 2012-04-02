@@ -106,13 +106,13 @@ static struct wake_lock vbus_wake_lock;
 #define BATTERY_CB_ID_ALL_ACTIV       	1
 #define BATTERY_CB_ID_LOW_VOL		2
 
-#define BATTERY_LOW            	3400	//2800
+#define BATTERY_LOW            	3350	//2800
 #define BATTERY_HIGH           	4200	//4300
 
 #define ONCRPC_CHG_GET_GENERAL_STATUS_PROC 	12
 #define ONCRPC_CHARGER_API_VERSIONS_PROC 	0xffffffff
 
-#define BATT_RPC_TIMEOUT    5000	/* 5 sec */
+#define BATT_RPC_TIMEOUT    60000	/* 5 sec */
 
 #define INVALID_BATT_HANDLE    -1
 
@@ -193,7 +193,7 @@ const int temp_table[][2] =  {
 #define BATT_TEMP_LOW_BLOCK			1708	// 	-3`C   +- 2
 #define BATT_TEMP_LOW_RECOVER		1670	//	0`C    +- 2
 
-#define BATT_FULL_CHARGING_VOLTAGE	4170
+#define BATT_FULL_CHARGING_VOLTAGE	4160
 #define BATT_FULL_CHARGING_CURRENT	180
 
 #define BATT_RECHARGING_VOLTAGE_1	4140
@@ -437,7 +437,7 @@ static char *msm_power_supplied_to[] = {
 	"battery",
 };
 
-#define BATT_CHECK_INTERVAL	(5 * TIME_UNIT_SECOND) // every 5 sec
+#define BATT_CHECK_INTERVAL	(60 * TIME_UNIT_SECOND) // every 5 sec
 
 static unsigned int charging_start_time = 0;
 
@@ -1092,7 +1092,7 @@ static int msm_batt_check_level(int battery_level)
 	*/
 	if ( (msm_batt_info.batt_full_check == 0) && (battery_level == 100) )
 	{
-		battery_level = 99;	// not yet fully charged
+		battery_level = 100;	// not yet fully charged
 	}
 /*
 	else if ( (battery_level == 0)
@@ -1135,7 +1135,7 @@ static int msm_batt_average_temperature(int temp_adc)
 		return 0;
 
 	if (count == 0 && temp_adc == 150)
-		return 0;	// hanapark: 부팅 초기 vbatt task 초기화 이전 값은 무시하도록 방어 코드 추가
+		return 0;
 
 #ifdef __BATT_TEST_DEVICE__
 		if (temp_test_adc)
@@ -1446,7 +1446,9 @@ static void msm_batt_update_psy_status(void)
 
 	/* check temperature */
 //	msm_batt_info.battery_temp_adc = msm_batt_average_temperature(battery_temp_adc);
-	status_changed += msm_batt_control_temperature(msm_batt_info.battery_temp_adc);
+
+
+	status_changed += msm_batt_control_temperature(msm_batt_info.battery_temp_adc);
 
 	/* check full charging */
 	msm_batt_info.chg_current_adc = msm_batt_average_chg_current(chg_current_adc);

@@ -686,13 +686,13 @@ static void msm_pm_restart(char str, const char *cmd)
 {
 	msm_rpcrouter_close();
 // >TEST
-printk(KERN_INFO "pm.c (msm_pm_restart) ROUTER is CLOSED\n");
+//printk(KERN_INFO "pm.c (msm_pm_restart) ROUTER is CLOSED\n");
 // <TEST
 
 	msm_proc_comm(PCOM_RESET_CHIP, &restart_reason, 0);
 
 // >TEST
-printk(KERN_INFO "pm.c (msm_pm_restart) PCOM_RESET_CHIP is SENT\n");
+//printk(KERN_INFO "pm.c (msm_pm_restart) PCOM_RESET_CHIP is SENT\n");
 // <TEST
 
 	for (;;) ;

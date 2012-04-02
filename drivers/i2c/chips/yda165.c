@@ -689,12 +689,12 @@ void D4Hp3_CheckArgument(D4HP3_SETTING_INFO *pstSettingInfo)
 	UINT8 bCheckArgument = 0;
 
 	/* IN */
-	if(pstSettingInfo->bLine1Gain > 7)
+	if(pstSettingInfo->bLine1Gain > 10)
 	{
 		pstSettingInfo->bLine1Gain = 2;
 		bCheckArgument++;
 	}
-	if(pstSettingInfo->bLine2Gain > 7)
+	if(pstSettingInfo->bLine2Gain > 10)
 	{
 		pstSettingInfo->bLine2Gain = 2;
 		bCheckArgument++;
@@ -730,7 +730,7 @@ void D4Hp3_CheckArgument(D4HP3_SETTING_INFO *pstSettingInfo)
 		pstSettingInfo->bHpAtt = 0;
 		bCheckArgument++;
 	}
-	if(pstSettingInfo->bHpGainUp > 3)
+	if(pstSettingInfo->bHpGainUp > 7)
 	{
 		pstSettingInfo->bHpGainUp = 0;
 		bCheckArgument++;
@@ -767,7 +767,7 @@ void D4Hp3_CheckArgument(D4HP3_SETTING_INFO *pstSettingInfo)
 		pstSettingInfo->bSpAtt = 0;
 		bCheckArgument++;
 	}
-	if(pstSettingInfo->bSpGainUp > 3)
+	if(pstSettingInfo->bSpGainUp > 7)
 	{
 		pstSettingInfo->bSpGainUp = 0;
 		bCheckArgument++;
@@ -808,7 +808,7 @@ void D4Hp3_CheckArgument(D4HP3_SETTING_INFO *pstSettingInfo)
 		pstSettingInfo->bSpNcpl_NonClipRatio = 0;
 		bCheckArgument++;
 	}
-	if(pstSettingInfo->bSpNcpl_PowerLimit > 15)
+	if(pstSettingInfo->bSpNcpl_PowerLimit > 20)
 	{
 		pstSettingInfo->bSpNcpl_PowerLimit =0;
 		bCheckArgument++;

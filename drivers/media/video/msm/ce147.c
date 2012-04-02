@@ -1757,13 +1757,13 @@ static int ce147_set_jpeg_quality(void)
 
     if(quality == 1) { // 91 ~ 100
         CAMDRV_DEBUG("%s: SUPERFINE \n", __func__);
-        compressionRatio = 17; // 17%
+        compressionRatio = 30; // 17%
     } else if(quality==2) {    // 81 ~ 90
         CAMDRV_DEBUG("%s: FINE \n", __func__);
-        compressionRatio = 14; // 16%
+        compressionRatio = 20; // 16%
     } else {
         CAMDRV_DEBUG("%s: NORMAL \n", __func__);
-        compressionRatio = 8; // 15%
+        compressionRatio = 15; // 15%
     }
 
     minimumCompressionRatio = compressionRatio - 3; // ex) if compression ratio is 17%, minimum compression ratio is 14%

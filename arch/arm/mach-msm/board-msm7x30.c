@@ -90,6 +90,7 @@
 #include <mach/qdsp5v2/audio_dev_ctl.h>
 #include <mach/sdio_al.h>
 #include "smd_private.h"
+#include <linux/bma150.h>
 
 #define MSM_PMEM_SF_SIZE	0x1700000
 #define MSM_FB_SIZE		0x500000
@@ -2807,6 +2808,7 @@ static struct usb_mass_storage_platform_data mass_storage_pdata = {
 	.vendor		= "Qualcomm Incorporated",
 	.product        = "Mass storage",
 	.release	= 0x0100,
+	.can_stall	= 1,
 
 };
 
@@ -3114,6 +3116,7 @@ static int hdmi_init_irq(void);
 static int hdmi_enable_5v(int on);
 static int hdmi_core_power(int on, int show);
 static int hdmi_cec_power(int on);
+static bool hdmi_check_hdcp_hw_support(void);
 
 static struct msm_hdmi_platform_data adv7520_hdmi_data = {
 	.irq = MSM_GPIO_TO_INT(18),
@@ -3122,6 +3125,7 @@ static struct msm_hdmi_platform_data adv7520_hdmi_data = {
 	.enable_5v = hdmi_enable_5v,
 	.core_power = hdmi_core_power,
 	.cec_power = hdmi_cec_power,
+	.check_hdcp_hw_support = hdmi_check_hdcp_hw_support,
 };
 
 static struct i2c_board_info msm_i2c_board_info[] = {
@@ -3969,8 +3973,12 @@ static struct kgsl_platform_data kgsl_pdata = {
 
 #ifdef CONFIG_KGSL_PER_PROCESS_PAGE_TABLE
 	.pt_va_size = SZ_32M,
+	/* Maximum of 32 concurrent processes */
+	.pt_max_count = 32,
 #else
 	.pt_va_size = SZ_128M,
+	/* We only ever have one pagetable for everybody */
+	.pt_max_count = 1,
 #endif
 };
 
@@ -5304,6 +5312,11 @@ static int get_mdm2ap_status(void)
 static struct sdio_al_platform_data sdio_al_pdata = {
 	.config_mdm2ap_status = configure_mdm2ap_status,
 	.get_mdm2ap_status = get_mdm2ap_status,
+	.allow_sdioc_version_major_2 = 1,
+	.peer_sdioc_version_minor = 0x0001,
+	.peer_sdioc_version_major = 0x0003,
+	.peer_sdioc_boot_version_minor = 0x0001,
+	.peer_sdioc_boot_version_major = 0x0002,
 };
 
 struct platform_device msm_device_sdio_al = {
@@ -6246,6 +6259,11 @@ static unsigned int msm7x30_sdcc_slot_status(struct device *dev)
 }
 #endif
 
+static void msm_sdcc_sdio_lpm_gpio(struct device *dv, unsigned int active)
+{
+	pr_debug("%s not implemented\n", __func__);
+}
+
 static int msm_sdcc_get_wpswitch(struct device *dv)
 {
 	void __iomem *wp_addr = 0;
@@ -6309,10 +6327,14 @@ static struct mmc_platform_data msm7x30_sdc1_data = {
 static struct mmc_platform_data msm7x30_sdc2_data = {
 	.ocr_mask	= MMC_VDD_165_195 | MMC_VDD_27_28,
 	.translate_vdd	= msm_sdcc_setup_power,
+	.sdio_lpm_gpio_setup = msm_sdcc_sdio_lpm_gpio,
 #ifdef CONFIG_MMC_MSM_SDC2_8_BIT_SUPPORT
 	.mmc_bus_width  = MMC_CAP_8_BIT_DATA,
 #else
 	.mmc_bus_width  = MMC_CAP_4_BIT_DATA,
+#endif
+#ifdef CONFIG_MMC_MSM_SDIO_SUPPORT
+	.sdiowakeup_irq = MSM_GPIO_TO_INT(68),
 #endif
 #ifdef CONFIG_MMC_MSM_SDC2_DUMMY52_REQUIRED
 	.dummy52_required = 1,
@@ -6321,6 +6343,9 @@ static struct mmc_platform_data msm7x30_sdc2_data = {
 	.msmsdcc_fmid	= 24576000,
 	.msmsdcc_fmax	= 49152000,
 	.nonremovable	= 1,
+#ifdef CONFIG_MSM_SDIO_AL
+	.is_sdio_al_client = 1,
+#endif
 };
 #endif
 
@@ -6338,7 +6363,7 @@ static struct mmc_platform_data msm7x30_sdc3_data = {
 	.msmsdcc_fmin	= 144000,
 	.msmsdcc_fmid	= 24576000,
 	.msmsdcc_fmax	= 49152000,
-	.nonremovable	= 1,
+	.nonremovable	= 0,
 };
 #endif
 

@@ -82,7 +82,6 @@ PBCMSDH_SDMMC_INSTANCE gInstance;
 
 extern int bcmsdh_probe(struct device *dev);
 extern int bcmsdh_remove(struct device *dev);
-struct device sdmmc_dev;
 
 static int bcmsdh_sdmmc_probe(struct sdio_func *func,
                               const struct sdio_device_id *id)
@@ -102,7 +101,7 @@ static int bcmsdh_sdmmc_probe(struct sdio_func *func,
 		if(func->device == 0x4) { /* 4318 */
 			gInstance->func[2] = NULL;
 			sd_trace(("NIC found, calling bcmsdh_probe...\n"));
-			ret = bcmsdh_probe(&sdmmc_dev);
+			ret = bcmsdh_probe(&func->dev);
 		}
 	}
 
@@ -110,7 +109,7 @@ static int bcmsdh_sdmmc_probe(struct sdio_func *func,
 
 	if (func->num == 2) {
 		sd_trace(("F2 found, calling bcmsdh_probe...\n"));
-		ret = bcmsdh_probe(&sdmmc_dev);
+		ret = bcmsdh_probe(&func->dev);
 	}
 
 	return ret;
@@ -126,27 +125,10 @@ static void bcmsdh_sdmmc_remove(struct sdio_func *func)
 
 	if (func->num == 2) {
 		sd_trace(("F2 found, calling bcmsdh_remove...\n"));
-		bcmsdh_remove(&sdmmc_dev);
+		bcmsdh_remove(&func->dev);
 	}
 }
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)) 
-static int bcmsdh_sdmmc_suspend(struct device *dev)
-{
-    sd_trace(("bcmsdh_sdmmc_suspend !!!!\n"));
-    return 0;
-}
 
-static int bcmsdh_sdmmc_resume(struct device *dev)
-{
-	sd_trace(("bcmsdh_sdmmc_resume !!!!\n"));
-    return 0;
-}
-
-static struct dev_pm_ops pm_ops = {
-     .suspend = bcmsdh_sdmmc_suspend,
-     .resume  = bcmsdh_sdmmc_resume,
-};
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32))  */
 /* devices we support, null terminated */
 static const struct sdio_device_id bcmsdh_sdmmc_ids[] = {
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_DEFAULT) },
@@ -164,10 +146,7 @@ static struct sdio_driver bcmsdh_sdmmc_driver = {
 	.remove		= bcmsdh_sdmmc_remove,
 	.name		= "bcmsdh_sdmmc",
 	.id_table	= bcmsdh_sdmmc_ids,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)) 	
-	.drv.pm     = &pm_ops,
-#endif	/* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32))  */
-};
+	};
 
 struct sdos_info {
 	sdioh_info_t *sd;
@@ -247,7 +226,7 @@ bcmsdh_module_init(void)
 static void __exit
 bcmsdh_module_cleanup(void)
 {
-  	sdio_function_cleanup();
+	sdio_function_cleanup();
 }
 
 module_init(bcmsdh_module_init);
@@ -270,9 +249,7 @@ int sdio_function_init(void)
 	if (!gInstance)
 		return -ENOMEM;
 
-	bzero(&sdmmc_dev, sizeof(sdmmc_dev));
 	error = sdio_register_driver(&bcmsdh_sdmmc_driver);
-
 
 	return error;
 }
@@ -284,7 +261,6 @@ extern int bcmsdh_remove(struct device *dev);
 void sdio_function_cleanup(void)
 {
 	sd_trace(("%s Enter\n", __FUNCTION__));
-
 
 	sdio_unregister_driver(&bcmsdh_sdmmc_driver);
 

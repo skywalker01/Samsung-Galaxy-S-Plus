@@ -119,7 +119,7 @@
 void __remove_from_page_cache(struct page *page)
 {
 	struct address_space *mapping = page->mapping;
-	
+
 	/*
 	* if we're uptodate, flush out into the cleancache, otherwise
 	* invalidate any existing cleancache entries. We can't leave
@@ -1422,7 +1422,7 @@ SYSCALL_ALIAS(sys_readahead, SyS_readahead);
 static int page_cache_read(struct file *file, pgoff_t offset)
 {
 	struct address_space *mapping = file->f_mapping;
-	struct page *page; 
+	struct page *page;
 	int ret;
 
 	do {
@@ -1439,7 +1439,7 @@ static int page_cache_read(struct file *file, pgoff_t offset)
 		page_cache_release(page);
 
 	} while (ret == AOP_TRUNCATED_PAGE);
-		
+
 	return ret;
 }
 
@@ -2339,7 +2339,7 @@ generic_file_buffered_write(struct kiocb *iocb, const struct iovec *iov,
 		written += status;
 		*ppos = pos + status;
   	}
-	
+
 	return written ? written : status;
 }
 EXPORT_SYMBOL(generic_file_buffered_write);

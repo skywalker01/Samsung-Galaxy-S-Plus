@@ -399,7 +399,7 @@ add_bfqq_busy:
 
  	if (! bfqd->low_latency)
  		return;
- 
+
  	if(old_raising_coeff == 1 ||
  	   (bfqd->bfq_raising_max_softrt_rate > 0 &&
  		bfqq->soft_rt_next_start < jiffies))

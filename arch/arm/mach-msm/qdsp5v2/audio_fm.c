@@ -303,8 +303,8 @@ static int audio_open(struct inode *inode, struct file *file)
 	/* Initialize the calibration gain structure */
 	audio->fm_calibration_rx[0].device_id = AFE_HW_PATH_CODEC_RX;
 	audio->fm_calibration_rx[1].device_id = AFE_HW_PATH_AUXPCM_RX;
-	audio->fm_calibration_rx[0].calib_rx.audppcalgain = 0x2000;
-	audio->fm_calibration_rx[1].calib_rx.audppcalgain = 0x2000;
+	audio->fm_calibration_rx[0].calib_rx.audppcalgain = 0x3FFF;
+	audio->fm_calibration_rx[1].calib_rx.audppcalgain = 0x3FFF;
 	audio->fm_calibration_rx[0].dev_details.acdb_id = PSEUDO_ACDB_ID;
 	audio->fm_calibration_rx[1].dev_details.acdb_id = PSEUDO_ACDB_ID;
 

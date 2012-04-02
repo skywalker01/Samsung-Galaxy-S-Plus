@@ -33,7 +33,7 @@ static inline void get_sizes(jpeg_cmd_enc_cfg *cmd, uint32_t *luma_size,
 	luma_height = cmd->frag_cfg & JPEG_CMD_FRAG_SIZE_LUMA_HEIGHT_M;
 	*luma_size = luma_width * luma_height;
 	if (fmt == JPEG_CMD_ENC_PROCESS_CFG_IP_DATA_FORMAT_H2V2)
-		*chroma_size = *luma_size/2;
+		*chroma_size = *luma_size;
 	else
 		*chroma_size = *luma_size;
 }

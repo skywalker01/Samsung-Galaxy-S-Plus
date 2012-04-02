@@ -1521,7 +1521,7 @@ static int audio_open(struct inode *inode, struct file *file)
 	audio->out_sample_rate = 44100;
 	audio->out_channel_mode = AUDPP_CMD_PCM_INTF_STEREO_V;
 	audio->out_bits = AUDPP_CMD_WAV_PCM_WIDTH_16;
-	audio->vol_pan.volume = 0x2000;
+	audio->vol_pan.volume = 0x3FFF;
 
 	audlpa_async_flush(audio);
 

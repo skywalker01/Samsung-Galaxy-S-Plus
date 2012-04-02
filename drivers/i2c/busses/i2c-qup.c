@@ -120,6 +120,14 @@ enum {
 	QUP_STATUS_ERROR_FLAGS     = 0x7C,
 };
 
+/* Master status clock states */
+enum {
+	I2C_CLK_RESET_BUSIDLE_STATE	= 0,
+	I2C_CLK_FORCED_LOW_STATE	= 5,
+};
+
+#define QUP_MAX_CLK_STATE_RETRIES	300
+
 struct qup_i2c_dev {
 	struct device                *dev;
 	void __iomem                 *base;		/* virtual */

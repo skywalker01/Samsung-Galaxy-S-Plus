@@ -33,6 +33,11 @@ if [ -z "$KBUILD_BUILD_VERSION" ]; then
 		VERSION=0
 		echo 0 > .version
 	fi
+	if [ -r .subversion ]; then
+		SUBVERSION=`cat .subversion`
+	else
+		SUBVERSION=""
+	fi
 else
 	VERSION=$KBUILD_BUILD_VERSION
 fi
@@ -43,7 +48,7 @@ else
 	TIMESTAMP=$KBUILD_BUILD_TIMESTAMP
 fi
 
-UTS_VERSION="V1.$VERSION"
+UTS_VERSION="V1.$VERSION$SUBVERSION"
 CONFIG_FLAGS=""
 if [ -n "$SMP" ] ; then CONFIG_FLAGS="SMP"; fi
 if [ -n "$PREEMPT" ] ; then CONFIG_FLAGS="$CONFIG_FLAGS PREEMPT"; fi

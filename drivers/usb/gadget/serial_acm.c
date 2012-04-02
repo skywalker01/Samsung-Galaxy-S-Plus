@@ -26,6 +26,7 @@
 
 extern void acm_notify(void * dev, u16 state);
 
+extern bool power_down;
 
 static wait_queue_head_t modem_wait_q;
 
@@ -90,7 +91,8 @@ EXPORT_SYMBOL(notify_control_line_state);
 static int
 modem_ioctl (struct inode *inode, struct file *file, unsigned int  cmd,unsigned long arg)
 {
-	printk("modem_ioctl: cmd=0x%x, arg=%lu\n", cmd, arg);
+	if(!power_down)
+		printk("modem_ioctl: cmd=0x%x, arg=%lu\n", cmd, arg);
 
 	/* handle ioctls */
 	switch (cmd)

@@ -1614,7 +1614,7 @@ static int audamrwb_open(struct inode *inode, struct file *file)
 	audio->out[1].addr = audio->phys + BUFSZ;
 	audio->out[1].size = BUFSZ;
 
-	audio->vol_pan.volume = 0x2000;
+	audio->vol_pan.volume = 0x3FFF;
 	audio->vol_pan.pan = 0x0;
 	audio->eq_enable = 0;
 	audio->out_sample_rate = 44100;

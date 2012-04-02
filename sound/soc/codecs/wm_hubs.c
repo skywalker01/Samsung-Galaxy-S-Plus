@@ -293,7 +293,7 @@ SOC_DOUBLE_R("Speaker Switch",
 SOC_DOUBLE_R("Speaker ZC Switch",
 	     WM8993_SPEAKER_VOLUME_LEFT, WM8993_SPEAKER_VOLUME_RIGHT,
 	     7, 1, 0),
-SOC_DOUBLE_TLV("Speaker Boost Volume", WM8993_SPKOUT_BOOST, 0, 3, 7, 0,
+SOC_DOUBLE_TLV("Speaker Boost Volume", WM8993_SPKOUT_BOOST, 3, 0, 7, 0,
 	       spkboost_tlv),
 SOC_ENUM("Speaker Reference", speaker_ref),
 SOC_ENUM("Speaker Mode", speaker_mode),
@@ -308,7 +308,7 @@ SOC_ENUM("Speaker Mode", speaker_mode),
 	.private_value = (unsigned long)&(struct soc_mixer_control) {
 		.reg = WM8993_LEFT_OUTPUT_VOLUME,
 		.rreg = WM8993_RIGHT_OUTPUT_VOLUME,
-		.shift = 0, .max = 63
+		.shift = 0, .max = 80 /*63*/
 	},
 },
 SOC_DOUBLE_R("Headphone Switch", WM8993_LEFT_OUTPUT_VOLUME,

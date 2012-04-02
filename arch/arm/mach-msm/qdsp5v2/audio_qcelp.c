@@ -1535,7 +1535,7 @@ static int audqcelp_open(struct inode *inode, struct file *file)
 	audio->out[1].addr = audio->phys + BUFSZ;
 	audio->out[1].size = BUFSZ;
 
-	audio->vol_pan.volume = 0x2000;
+	audio->vol_pan.volume = 0x3FFF;
 
 	audqcelp_flush(audio);
 

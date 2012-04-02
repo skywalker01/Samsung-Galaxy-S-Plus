@@ -28,6 +28,8 @@
 
 #include <linux/slab.h>
 
+extern bool power_down;
+
 static struct i2c_driver fg_i2c_driver;
 struct fg_i2c_chip {
 	struct i2c_client		*client;
@@ -113,7 +115,8 @@ unsigned int fg_read_vcell(void)
 	}
 	vcell = ((((data[0] << 4) & 0xFF0) | ((data[1] >> 4) & 0xF)) * 125)/100;
 
-	pr_debug("%s: VCELL=%d\n", __func__, vcell);
+	if(!power_down)
+		pr_debug("%s: VCELL=%d\n", __func__, vcell);
 
 	return vcell;
 }
@@ -154,14 +157,14 @@ unsigned int fg_read_soc(void)
 
 	// hsil for get Adjusted SOC%
 	if(FGPureSOC >= 0)
-		FGAdjustSOC = ((FGPureSOC*10000)-40)/9730;
+		FGAdjustSOC = ((FGPureSOC*10000)-0)/9670;
 	else
 		FGAdjustSOC = 0;
 
 	// rounding off and Changing to percentage.
 	FGSOC=FGAdjustSOC/100;
 
-	if(FGAdjustSOC%100 >= 50)
+	if(FGAdjustSOC%100 >= 50 && FGSOC > 1)
 		FGSOC+=1;
 
 	if(FGSOC>=100)
@@ -170,7 +173,9 @@ unsigned int fg_read_soc(void)
 	if (FGSOC < 0)
 		FGSOC = 0;
 
-	printk("[MAX17043] FGPureSOC = %d (%d.%d)\tFGAdjustSOC = %d\tFGSOC = %d\n", FGPureSOC, data[0], (data[1]*100)/256, FGAdjustSOC, FGSOC);
+	if(!power_down)
+		printk("[MAX17043] FGPureSOC = %d (%d.%d)\tFGAdjustSOC = %d\tFGSOC = %d\n", FGPureSOC, data[0], (data[1]*100)/256, FGAdjustSOC, FGSOC);
+
 
 	return FGSOC;
 }

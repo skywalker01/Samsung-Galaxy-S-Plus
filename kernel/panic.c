@@ -78,7 +78,7 @@ NORET_TYPE void panic(const char * fmt, ...)
 {
 	static char buf[1024];
 	va_list args;
-	long i;
+	long i=0;
 
 #ifdef CONFIG_KERNEL_DEBUG_SEC
 	sec_kernel_panic = 1;

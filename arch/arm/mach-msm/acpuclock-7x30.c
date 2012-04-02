@@ -289,9 +289,10 @@ int acpuclk_set_rate(int cpu, unsigned long rate, enum setrate_reason reason)
 	/* Drop VDD level if we can. */
 	if (tgt_s->vdd_mv < strt_s->vdd_mv) {
 		res = acpuclk_set_acpu_vdd(tgt_s);
-		if (res)
+		if (res < 0) {
 			pr_warning("ACPU VDD decrease to %d mV failed (%d)\n",
 					tgt_s->vdd_mv, res);
+		}
 	}
 
 	dprintk("ACPU speed change complete\n");

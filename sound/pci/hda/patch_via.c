@@ -1100,6 +1100,10 @@ static int via_mux_enum_put(struct snd_kcontrol *kcontrol,
 		snd_hda_codec_write(codec, spec->mux_nids[adc_idx], 0,
 				    AC_VERB_SET_POWER_STATE, AC_PWRST_D0);
 	/* update jack power state */
+
+	ret = snd_hda_input_mux_put(codec, spec->input_mux, ucontrol,
+	spec->mux_nids[adc_idx],
+	&spec->cur_mux[adc_idx]);
 	set_jack_power_state(codec);
 
 	return snd_hda_input_mux_put(codec, spec->input_mux, ucontrol,

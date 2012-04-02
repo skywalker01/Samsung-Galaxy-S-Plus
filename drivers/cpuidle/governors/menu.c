@@ -237,7 +237,7 @@ static int menu_select(struct cpuidle_device *dev)
 	unsigned int power_usage = -1;
 	int i;
 	int multiplier;
-	
+
 	struct timespec t;
 
 	if (data->needs_update) {
