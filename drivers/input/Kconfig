@@ -180,6 +180,13 @@ config XEN_KBDDEV_FRONTEND
 	  keyboard and mouse device driver.  It communicates with a back-end
 	  in another domain.
 
+config INPUT_SECBRIDGE
+    bool "specific input event handler for samsung"
+    depends on INPUT
+    default n
+    help
+        This driver implements the sec-input-bridge for force ramdump!!
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"

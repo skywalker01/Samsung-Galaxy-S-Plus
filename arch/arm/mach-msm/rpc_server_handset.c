@@ -226,7 +226,7 @@ struct msm_handset {
 static struct msm_rpc_client *rpc_client;
 static struct msm_handset *hs;
 
-#if (defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART))
+#if (defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE))
 extern int key_pressed;
 #endif
 static int hs_find_key(uint32_t hscode)
@@ -290,7 +290,7 @@ static void report_hs_key(uint32_t key_code, uint32_t key_parm)
 	case KEY_VOLUMEUP:
 	case KEY_VOLUMEDOWN:
 		input_report_key(hs->ipdev, key, (key_code != HS_REL_K));
-#if (defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART))
+#if (defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE))
 		key_pressed=(key_code != HS_REL_K);
 #ifdef KERNEL_DEBUG_SEC
 		printk("[key] pwercode %d, %d \n", key, key_pressed);

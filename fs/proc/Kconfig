@@ -67,3 +67,10 @@ config PROC_PAGE_MONITOR
 	  /proc/pid/smaps, /proc/pid/clear_refs, /proc/pid/pagemap,
 	  /proc/kpagecount, and /proc/kpageflags. Disabling these
           interfaces will reduce the size of the kernel by approximately 4kb.
+
+config CPU_LOAD_MONITOR
+    default y
+    depends on CPU_FREQ && CPU_FREQ_GOV_ONDEMAND
+    bool "enable /proc cpu_load monitoring"
+    help
+        Monitoring cpu load, clock with printing timestamp.

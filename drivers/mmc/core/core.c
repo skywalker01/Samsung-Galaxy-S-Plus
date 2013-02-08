@@ -42,15 +42,32 @@
 #include <mach/gpio.h>
 #include <linux/mfd/pmic8058.h>
 
+#include <mach/vreg.h>
 
 static struct workqueue_struct *workqueue;
 static struct wake_lock mmc_delayed_work_wake_lock;
+
+extern unsigned int board_hw_revision;
+
+struct vreg {
+	const char *name;
+	unsigned id;
+	int status;
+	unsigned refcnt;
+};
+
+// -------------------------------------------
+// ANCORA H/W Rev Check
+// -------------------------------------------
+#define ANCORA_EXT_SD_CHECK_ROUTINE			1
+// -------------------------------------------
+
+#ifdef ANCORA_EXT_SD_CHECK_ROUTINE
+
 #define PM8058_GPIO_PM_TO_SYS(pm_gpio)     (pm_gpio + NR_GPIO_IRQS)
 #define PM8058_GPIO_SYS_TO_PM(sys_gpio)    (sys_gpio - NR_GPIO_IRQS)
 
 #define PMIC_GPIO_SD_PWR_EN_N  24
-
-
 struct pm8058_gpio sd_pwr_en_n_core = {
 	.direction      = PM_GPIO_DIR_OUT,
 	.pull           = PM_GPIO_PULL_NO,
@@ -60,6 +77,7 @@ struct pm8058_gpio sd_pwr_en_n_core = {
 	.out_strength   = PM_GPIO_STRENGTH_LOW,
 	.output_value   = 0,
 };
+#endif
 
 /*
  * Enabling software CRCs on the data blocks can be a significant (30%)
@@ -80,6 +98,7 @@ int mmc_assume_removable;
 #else
 int mmc_assume_removable = 1;
 #endif
+EXPORT_SYMBOL(mmc_assume_removable);
 module_param_named(removable, mmc_assume_removable, bool, 0644);
 MODULE_PARM_DESC(
 	removable,
@@ -141,17 +160,21 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 
 		if (mrq->data) {
 #ifdef CONFIG_MMC_PERF_PROFILING
-			diff = ktime_sub(ktime_get(), host->perf.start);
-			if (mrq->data->flags == MMC_DATA_READ) {
-				host->perf.rbytes_drv +=
+			if (host->perf_enable) {
+				diff = ktime_sub(ktime_get(), host->perf.start);
+				if (mrq->data->flags == MMC_DATA_READ) {
+					host->perf.rbytes_drv +=
+							mrq->data->bytes_xfered;
+					host->perf.rtime_drv =
+						ktime_add(host->perf.rtime_drv,
+							diff);
+				} else {
+					host->perf.wbytes_drv +=
 						mrq->data->bytes_xfered;
-				host->perf.rtime_drv =
-					ktime_add(host->perf.rtime_drv, diff);
-			} else {
-				host->perf.wbytes_drv +=
-						 mrq->data->bytes_xfered;
-				host->perf.wtime_drv =
-					ktime_add(host->perf.wtime_drv, diff);
+					host->perf.wtime_drv =
+						ktime_add(host->perf.wtime_drv,
+							diff);
+				}
 			}
 #endif
 			pr_debug("%s:     %d bytes transferred: %d\n",
@@ -230,7 +253,8 @@ mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 		}
 
 #ifdef CONFIG_MMC_PERF_PROFILING
-		host->perf.start = ktime_get();
+		if (host->perf_enable)
+			host->perf.start = ktime_get();
 #endif
 	}
 	host->ops->request(host, mrq);
@@ -259,7 +283,7 @@ void mmc_wait_for_req(struct mmc_host *host, struct mmc_request *mrq)
 
 	mmc_start_request(host, mrq);
 
-	wait_for_completion(&complete);
+	wait_for_completion_io(&complete);
 }
 
 EXPORT_SYMBOL(mmc_wait_for_req);
@@ -346,9 +370,9 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 			 * The limit is really 250 ms, but that is
 			 * insufficient for some crappy cards.
 			 */
-			 limit_us = 1000000;		// increase timeout period for specific SD card
+			limit_us = 300000;
 		else
-			limit_us = 500000;
+			limit_us = 100000;
 
 		/*
 		 * SDHC cards always use these fixed values.
@@ -491,8 +515,6 @@ int mmc_host_disable(struct mmc_host *host)
 		return 0;
 
 	if (!host->enabled)
-		return 0;
-	if (host->rescan_disable != 0)
 		return 0;
 
 	err = mmc_host_do_disable(host, 0);
@@ -1141,12 +1163,28 @@ void mmc_rescan(struct work_struct *work)
 	int err;
 	int extend_wakelock = 0;
 	int rc;
+	int rc_ldo;
+
+	unsigned long flags;
+	struct vreg *vreg_sd_gp10;
+
+	host->damaged_sd_card = 0;
+
+	spin_lock_irqsave(&host->lock, flags);
+	if (host->rescan_disable) {
+		spin_unlock_irqrestore(&host->lock, flags);
+		return;
+	}
+	spin_unlock_irqrestore(&host->lock, flags);
 
 	mmc_bus_get(host);
 
-	/* if there is a card registered, check whether it is still present */
-	if ((host->bus_ops != NULL) && host->bus_ops->detect &&
-		!host->bus_dead) {
+	/*
+	 * if there is a _removable_ card registered, check whether it is
+	 * still present
+	 */
+	if (host->bus_ops && host->bus_ops->detect && !host->bus_dead
+	    && !(host->caps & MMC_CAP_NONREMOVABLE)) {
 		host->bus_ops->detect(host);
 		/* If the card was removed the bus will be marked
 		 * as dead - extend the wakelock so userspace
@@ -1178,12 +1216,18 @@ void mmc_rescan(struct work_struct *work)
 		goto out;
 
 	mmc_claim_host(host);
-	rc = pm8058_gpio_config(PMIC_GPIO_SD_PWR_EN_N, &sd_pwr_en_n_core);
-	if (rc) {
-		pr_err("%s PMIC_GPIO_SD_PWR_EN_N config failed\n", __func__);
-		return rc;
+
+#ifdef ANCORA_EXT_SD_CHECK_ROUTINE
+	if( board_hw_revision <= 3 )
+	{
+		rc = pm8058_gpio_config(PMIC_GPIO_SD_PWR_EN_N, &sd_pwr_en_n_core);
+		if (rc) {
+			pr_err("%s PMIC_GPIO_SD_PWR_EN_N config failed\n", __func__);
+			return rc;
+		}
+		gpio_set_value_cansleep(PM8058_GPIO_PM_TO_SYS(PMIC_GPIO_SD_PWR_EN_N), 0);
 	}
-	gpio_set_value_cansleep(PM8058_GPIO_PM_TO_SYS(PMIC_GPIO_SD_PWR_EN_N), 0);
+#endif
 
 	mmc_power_up(host);
 	sdio_reset(host);
@@ -1195,9 +1239,13 @@ void mmc_rescan(struct work_struct *work)
 	 * First we search for SDIO...
 	 */
 	err = mmc_send_io_op_cond(host, 0, &ocr);
-	if (!err) {
+	if (!err)
+	{
 		if (mmc_attach_sdio(host, ocr))
+		{
 			mmc_power_off(host);
+			host->damaged_sd_card = 1;
+		}
 		extend_wakelock = 1;
 		goto out;
 	}
@@ -1206,9 +1254,13 @@ void mmc_rescan(struct work_struct *work)
 	 * ...then normal SD...
 	 */
 	err = mmc_send_app_op_cond(host, 0, &ocr);
-	if (!err) {
+	if (!err)
+	{
 		if (mmc_attach_sd(host, ocr))
+		{
 			mmc_power_off(host);
+			host->damaged_sd_card = 1;
+		}
 		extend_wakelock = 1;
 		goto out;
 	}
@@ -1217,9 +1269,13 @@ void mmc_rescan(struct work_struct *work)
 	 * ...and finally MMC.
 	 */
 	err = mmc_send_op_cond(host, 0, &ocr);
-	if (!err) {
+	if (!err)
+	{
 		if (mmc_attach_mmc(host, ocr))
+		{
 			mmc_power_off(host);
+			host->damaged_sd_card = 1;
+		}
 		extend_wakelock = 1;
 		goto out;
 	}
@@ -1228,6 +1284,32 @@ void mmc_rescan(struct work_struct *work)
 	mmc_power_off(host);
 
 out:
+	// -- Turn off power of sd card when the set detect the worng sd card.
+	if(!strcmp(mmc_hostname(host), "mmc2"))
+	{
+		if(err == -110 || host->damaged_sd_card == 1)
+		{
+			vreg_sd_gp10 = vreg_get(NULL, "gp10");
+			if (!vreg_sd_gp10)
+				pr_err("%s: VREG L16 get failed\n", __func__);
+
+			printk(KERN_INFO "%s's vreg: Name %s / Id %d / Status %d / Count %d\n", mmc_hostname(host),
+				vreg_sd_gp10->name, vreg_sd_gp10->id, vreg_sd_gp10->status, vreg_sd_gp10->refcnt);
+
+			if(vreg_sd_gp10->refcnt)
+			{
+				rc_ldo = vreg_disable(vreg_sd_gp10);
+				if(rc_ldo)
+					pr_err("%s: VREG L16 disable failed %d\n", __func__, rc_ldo);
+
+				printk(KERN_INFO "%s's vreg [Off]: Name %s / Id %d / Status %d / Count %d\n", mmc_hostname(host),
+					vreg_sd_gp10->name, vreg_sd_gp10->id, vreg_sd_gp10->status, vreg_sd_gp10->refcnt);
+			}
+		}
+		host->damaged_sd_card = 0;
+	}
+	// --
+
 	if (extend_wakelock)
 		wake_lock_timeout(&mmc_delayed_work_wake_lock, HZ / 2);
 	else
@@ -1254,7 +1336,7 @@ void mmc_stop_host(struct mmc_host *host)
 
 	if (host->caps & MMC_CAP_DISABLE)
 		cancel_delayed_work(&host->disable);
-	cancel_delayed_work(&host->detect);
+	cancel_delayed_work_sync(&host->detect);
 	mmc_flush_scheduled_work();
 
 	/* clear pm flags now and let card drivers set them as needed */
@@ -1370,32 +1452,45 @@ int mmc_suspend_host(struct mmc_host *host)
 
 	mmc_bus_get(host);
 	if (host->bus_ops && !host->bus_dead) {
-	    if (!(host->card && mmc_card_sdio(host->card)))
-	      if (!mmc_try_claim_host(host))
-       err = -EBUSY;
-	    if (!err) {
-	      if (host->bus_ops->suspend)
-	      err = host->bus_ops->suspend(host);
-	      if (!(host->card && mmc_card_sdio(host->card)))
-	        mmc_do_release_host(host);
-	      if (err == -ENOSYS || !host->bus_ops->resume) {
-        /*
-         * We simply "remove" the card in this case.
-         * It will be redetected on resume.
-         */
-        if (host->bus_ops->remove)
-        host->bus_ops->remove(host);
-        mmc_claim_host(host);
-        mmc_detach_bus(host);
-        mmc_power_off(host);
-        mmc_release_host(host);
-        host->pm_flags = 0;
-        err = 0;
 
-      }
+		/*
+		 * A long response time is not acceptable for device drivers
+		 * when doing suspend. Prevent mmc_claim_host in the suspend
+		 * sequence, to potentially wait "forever" by trying to
+		 * pre-claim the host.
+		 *
+		 * Skip try claim host for SDIO cards, doing so fixes deadlock
+		 * conditions. The function driver suspend may again call into
+		 * SDIO driver within a different context for enabling power
+		 * save mode in the card and hence wait in mmc_claim_host
+		 * causing deadlock.
+		 */
+		if (!(host->card && mmc_card_sdio(host->card)))
+			if (!mmc_try_claim_host(host))
+				err = -EBUSY;
 
+		if (!err) {
+			if (host->bus_ops->suspend)
+				err = host->bus_ops->suspend(host);
+			if (!(host->card && mmc_card_sdio(host->card)))
+				mmc_do_release_host(host);
 
+			if (err == -ENOSYS || !host->bus_ops->resume) {
+				/*
+				 * We simply "remove" the card in this case.
+				 * It will be redetected on resume.
+				 */
+				if (host->bus_ops->remove)
+					host->bus_ops->remove(host);
+				mmc_claim_host(host);
+				mmc_detach_bus(host);
+				mmc_power_off(host);
+				mmc_release_host(host);
+				host->pm_flags = 0;
+				err = 0;
+			}
 		}
+		flush_delayed_work(&host->disable);
 	}
 	mmc_bus_put(host);
 
@@ -1438,12 +1533,6 @@ int mmc_resume_host(struct mmc_host *host)
 	}
 	mmc_bus_put(host);
 
-	/*
-	 * We add a slight delay here so that resume can progress
-	 * in parallel.
-	 */
-	mmc_detect_change(host, 1);
-
 	return err;
 }
 EXPORT_SYMBOL(mmc_resume_host);
@@ -1480,10 +1569,12 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		mmc_claim_host(host);
 		mmc_detach_bus(host);
 		mmc_release_host(host);
+		host->pm_flags = 0;
 		break;
 
 	case PM_POST_SUSPEND:
 	case PM_POST_HIBERNATION:
+	case PM_POST_RESTORE:
 
 		spin_lock_irqsave(&host->lock, flags);
 		if (mmc_bus_manual_resume(host)) {

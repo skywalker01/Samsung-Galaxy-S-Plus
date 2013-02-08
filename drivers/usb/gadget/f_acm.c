@@ -23,12 +23,14 @@
 #include "gadget_chips.h"
 
 #define CSY_SAMSUNG_NO_IAD
-#if 1
+#ifdef CONFIG_USB_DUN_SUPPORT
 /* refered from S1 */
 extern int modem_register(void * data);
 extern void modem_unregister(void);
 extern void notify_control_line_state(u32 value);
 #endif
+
+extern bool power_down;
 
 /*
  * This CDC ACM function support just wraps control functions and
@@ -121,7 +123,7 @@ acm_iad_descriptor = {
 	.bInterfaceCount = 	2,	// control + data
 	.bFunctionClass =	USB_CLASS_COMM,
 	.bFunctionSubClass =	USB_CDC_SUBCLASS_ACM,
-	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
+	.bFunctionProtocol =	USB_CDC_ACM_PROTO_AT_V25TER,
 	/* .iFunction =		DYNAMIC */
 };
 #endif
@@ -392,7 +394,7 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 		 * that bit, we should return to that no-flow state.
 		 */
 		acm->port_handshake_bits = w_value;
-#if 1
+#ifdef CONFIG_USB_DUN_SUPPORT
 
 /* refered from S1 */
 		notify_control_line_state((unsigned long)w_value);
@@ -521,9 +523,11 @@ static int acm_cdc_notify(struct f_acm *acm, u8 type, u16 value,
 	spin_lock(&acm->lock);
 
 	if (status < 0) {
+		if(!power_down) {
 		ERROR(acm->port.func.config->cdev,
 				"acm ttyGS%d can't notify serial state, %d\n",
 				acm->port_num, status);
+		}
 		acm->notify_req = req;
 	}
 
@@ -567,8 +571,7 @@ static void acm_cdc_notify_complete(struct usb_ep *ep, struct usb_request *req)
 		acm_notify_serial_state(acm);
 }
 
-#if 1
-
+#ifdef CONFIG_USB_DUN_SUPPORT
 /* refered from S1 */
 void acm_notify(void * dev, u16 state)
 {
@@ -714,8 +717,7 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 			acm->port.in->name, acm->port.out->name,
 			acm->notify->name);
-#if 1
-
+#ifdef CONFIG_USB_DUN_SUPPORT
 /* refered from S1 */
 	modem_register(acm);
 #endif
@@ -748,12 +750,12 @@ acm_unbind(struct usb_configuration *c, struct usb_function *f)
 	usb_free_descriptors(f->descriptors);
 	gs_free_req(acm->notify, acm->notify_req);
 	kfree(acm);
-#if 1
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 /* refered from S1 */
 	gserial_disconnect(&acm->port);
 	gserial_cleanup();
 #endif
-#if 1
+#ifdef CONFIG_USB_DUN_SUPPORT
 
 /* refered from S1 */
 	modem_unregister();

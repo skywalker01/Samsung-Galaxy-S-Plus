@@ -2887,6 +2887,12 @@ void  get_message(void)
             y = quantum_msg[3];
             y = y << 2;
             y = y | ((quantum_msg[4] & 0x0C)  >> 2);
+
+#if defined(CONFIG_MACH_APACHE)
+            x = 480-(int16_t)x;
+            y = 800-(int16_t)y;
+#endif
+
 #endif
 
             size = quantum_msg[5];

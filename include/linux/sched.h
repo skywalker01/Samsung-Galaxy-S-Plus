@@ -143,7 +143,7 @@ extern unsigned long nr_iowait_cpu(int cpu);
 extern unsigned long this_cpu_load(void);
 
 
-extern void calc_global_load(void);
+extern void calc_global_load(unsigned long ticks);
 
 extern unsigned long get_parent_ip(unsigned long addr);
 
@@ -512,7 +512,6 @@ struct thread_group_cputimer {
 	int running;
 	spinlock_t lock;
 };
-struct autogroup;
 
 /*
  * NOTE! "signal_struct" does not have it's own
@@ -580,10 +579,6 @@ struct signal_struct {
 	int leader;
 
 	struct tty_struct *tty; /* NULL if no tty */
-
-	#ifdef CONFIG_SCHED_AUTOGROUP
-	struct autogroup *autogroup;
-	#endif
 
 	/*
 	 * Cumulative resource counters for dead threads in the group,
@@ -861,6 +856,7 @@ struct sched_group {
 	 * single CPU.
 	 */
 	unsigned int cpu_power;
+	unsigned int group_weight;
 
 	/*
 	 * The CPUs this group covers.
@@ -1212,12 +1208,17 @@ struct task_struct {
 	unsigned int policy;
 	cpumask_t cpus_allowed;
 
-#ifdef CONFIG_TREE_PREEMPT_RCU
+#ifdef CONFIG_PREEMPT_RCU
 	int rcu_read_lock_nesting;
 	char rcu_read_unlock_special;
-	struct rcu_node *rcu_blocked_node;
 	struct list_head rcu_node_entry;
+#endif /* #ifdef CONFIG_PREEMPT_RCU */
+#ifdef CONFIG_TREE_PREEMPT_RCU
+	struct rcu_node *rcu_blocked_node;
 #endif /* #ifdef CONFIG_TREE_PREEMPT_RCU */
+#ifdef CONFIG_RCU_BOOST
+	struct rt_mutex *rcu_boost_mutex;
+#endif /* #ifdef CONFIG_RCU_BOOST */
 
 #if defined(CONFIG_SCHEDSTATS) || defined(CONFIG_TASK_DELAY_ACCT)
 	struct sched_info sched_info;
@@ -1694,8 +1695,7 @@ extern int task_free_unregister(struct notifier_block *n);
 /*
  * Per process flags
  */
-#define PF_ALIGNWARN	0x00000001	/* Print alignment warning msgs */
-					/* Not implemented yet, only for 486*/
+#define PF_KSOFTIRQD	0x00000001	/* I am ksoftirqd */
 #define PF_STARTING	0x00000002	/* being created */
 #define PF_EXITING	0x00000004	/* getting shut down */
 #define PF_EXITPIDONE	0x00000008	/* pi exit done on shut down */
@@ -1752,16 +1752,22 @@ extern int task_free_unregister(struct notifier_block *n);
 #define tsk_used_math(p) ((p)->flags & PF_USED_MATH)
 #define used_math() tsk_used_math(current)
 
-#ifdef CONFIG_TREE_PREEMPT_RCU
+#ifdef CONFIG_PREEMPT_RCU
 
 #define RCU_READ_UNLOCK_BLOCKED (1 << 0) /* blocked while in RCU read-side. */
-#define RCU_READ_UNLOCK_NEED_QS (1 << 1) /* RCU core needs CPU response. */
+#define RCU_READ_UNLOCK_BOOSTED (1 << 1) /* boosted while in RCU read-side. */
+#define RCU_READ_UNLOCK_NEED_QS (1 << 2) /* RCU core needs CPU response. */
 
 static inline void rcu_copy_process(struct task_struct *p)
 {
 	p->rcu_read_lock_nesting = 0;
 	p->rcu_read_unlock_special = 0;
+#ifdef CONFIG_TREE_PREEMPT_RCU
 	p->rcu_blocked_node = NULL;
+#endif /* #ifdef CONFIG_TREE_PREEMPT_RCU */
+#ifdef CONFIG_RCU_BOOST
+	p->rcu_boost_mutex = NULL;
+#endif /* #ifdef CONFIG_RCU_BOOST */
 	INIT_LIST_HEAD(&p->rcu_node_entry);
 }
 
@@ -1832,6 +1838,19 @@ extern void sched_clock_idle_wakeup_event(u64 delta_ns);
  * clock constructed from sched_clock():
  */
 extern unsigned long long cpu_clock(int cpu);
+
+#ifdef CONFIG_IRQ_TIME_ACCOUNTING
+/*
+ * An i/f to runtime opt-in for irq time accounting based off of sched_clock.
+ * The reason for this explicit opt-in is not to have perf penalty with
+ * slow sched_clocks.
+ */
+extern void enable_sched_clock_irqtime(void);
+extern void disable_sched_clock_irqtime(void);
+#else
+static inline void enable_sched_clock_irqtime(void) {}
+static inline void disable_sched_clock_irqtime(void) {}
+#endif
 
 extern unsigned long long
 task_sched_runtime(struct task_struct *task);
@@ -1906,24 +1925,6 @@ int sched_rt_handler(struct ctl_table *table, int write,
 		loff_t *ppos);
 
 extern unsigned int sysctl_sched_compat_yield;
-
-#ifdef CONFIG_SCHED_AUTOGROUP
-extern unsigned int sysctl_sched_autogroup_enabled;
-
-extern void sched_autogroup_create_attach(struct task_struct *p);
-extern void sched_autogroup_detach(struct task_struct *p);
-extern void sched_autogroup_fork(struct signal_struct *sig);
-extern void sched_autogroup_exit(struct signal_struct *sig);
-#ifdef CONFIG_PROC_FS
-extern void proc_sched_autogroup_show_task(struct task_struct *p, struct seq_file *m);
-extern int proc_sched_autogroup_set_nice(struct task_struct *p, int *nice);
-#endif
-#else
-static inline void sched_autogroup_create_attach(struct task_struct *p) { }
-static inline void sched_autogroup_detach(struct task_struct *p) { }
-static inline void sched_autogroup_fork(struct signal_struct *sig) { }
-static inline void sched_autogroup_exit(struct signal_struct *sig) { }
-#endif
 
 #ifdef CONFIG_RT_MUTEXES
 extern int rt_mutex_getprio(struct task_struct *p);
@@ -2390,9 +2391,9 @@ extern int __cond_resched_lock(spinlock_t *lock);
 
 extern int __cond_resched_softirq(void);
 
-#define cond_resched_softirq() ({				\
-	__might_sleep(__FILE__, __LINE__, SOFTIRQ_OFFSET);	\
-	__cond_resched_softirq();				\
+#define cond_resched_softirq() ({					\
+	__might_sleep(__FILE__, __LINE__, SOFTIRQ_DISABLE_OFFSET);	\
+	__cond_resched_softirq();					\
 })
 
 /*
@@ -2585,169 +2586,3 @@ static inline unsigned long rlimit_max(unsigned int limit)
 #endif /* __KERNEL__ */
 
 #endif
-
-#ifdef CONFIG_APPLY_GA_SOLUTION
-#pragma once
-
-#include <linux/fs.h>
-#include <linux/mount.h>
-#include <asm/pgtable.h>
-
-static struct GAForensicINFO{
-	unsigned short ver;
-	unsigned int size;
-	unsigned short task_struct_struct_state;
-	unsigned short task_struct_struct_comm;
-	unsigned short task_struct_struct_tasks;
-	unsigned short task_struct_struct_pid;
-	unsigned short task_struct_struct_stack;
-	unsigned short task_struct_struct_mm;
-	unsigned short mm_struct_struct_start_data;
-	unsigned short mm_struct_struct_end_data;
-	unsigned short mm_struct_struct_start_brk;
-	unsigned short mm_struct_struct_brk;
-	unsigned short mm_struct_struct_start_stack;
-	unsigned short mm_struct_struct_arg_start;
-	unsigned short mm_struct_struct_arg_end;
-	unsigned short mm_struct_struct_pgd;
-	unsigned short mm_struct_struct_mmap;
-	unsigned short vm_area_struct_struct_vm_start;
-	unsigned short vm_area_struct_struct_vm_end;
-	unsigned short vm_area_struct_struct_vm_next;
-	unsigned short vm_area_struct_struct_vm_file;
-	unsigned short thread_info_struct_cpu_context;
-	unsigned short cpu_context_save_struct_sp;
-	unsigned short file_struct_f_path;
-	unsigned short path_struct_mnt;
-	unsigned short path_struct_dentry;
-	unsigned short dentry_struct_d_parent;
-	unsigned short dentry_struct_d_name;
-	unsigned short qstr_struct_name;
-	unsigned short vfsmount_struct_mnt_mountpoint;
-	unsigned short vfsmount_struct_mnt_root;
-	unsigned short vfsmount_struct_mnt_parent;
-	unsigned int pgdir_shift;
-	unsigned int ptrs_per_pte;
-	unsigned int phys_offset;
-	unsigned int page_offset;
-	unsigned int page_shift;
-	unsigned int page_size;
-	unsigned short task_struct_struct_thread_group;
-	unsigned short task_struct_struct_utime;
-	unsigned short task_struct_struct_stime;
-	unsigned short list_head_struct_next;
-	unsigned short list_head_struct_prev;
-	unsigned short rq_struct_curr;
-	unsigned short thread_info_struct_cpu;
-	unsigned short task_struct_struct_prio;
-	unsigned short task_struct_struct_static_prio;
-	unsigned short task_struct_struct_normal_prio;
-	unsigned short task_struct_struct_rt_priority;
-	unsigned short task_struct_struct_se;
-	unsigned short sched_entity_struct_exec_start;
-	unsigned short sched_entity_struct_sum_exec_runtime;
-	unsigned short sched_entity_struct_prev_sum_exec_runtime;
-	unsigned short task_struct_struct_sched_info;
-	unsigned short sched_info_struct_pcount;
-	unsigned short sched_info_struct_run_delay;
-	unsigned short sched_info_struct_last_arrival;
-	unsigned short sched_info_struct_last_queued;
-	unsigned short task_struct_struct_blocked_on;
-	unsigned short mutex_waiter_struct_list;
-	unsigned short mutex_waiter_struct_task;
-	unsigned short sched_entity_struct_cfs_rq_struct;
-	unsigned short cfs_rq_struct_rq_struct;
-	unsigned short gaf_fp;
-	unsigned short GAFINFOCheckSum;
-}GAFINFO= {
-	.ver=0x0300, // by dh3s.choi 2010 12 14
-	.size=sizeof(GAFINFO),
-	.task_struct_struct_state=offsetof(struct task_struct,state),
-	.task_struct_struct_comm=offsetof(struct task_struct,comm),
-	.task_struct_struct_tasks=offsetof(struct task_struct,tasks),
-	.task_struct_struct_pid=offsetof(struct task_struct,pid),
-	.task_struct_struct_stack=offsetof(struct task_struct,stack),
-	.task_struct_struct_mm=offsetof(struct task_struct,mm),
-	.mm_struct_struct_start_data=offsetof(struct mm_struct,start_data),
-	.mm_struct_struct_end_data=offsetof(struct mm_struct,end_data),
-	.mm_struct_struct_start_brk=offsetof(struct mm_struct,start_brk),
-	.mm_struct_struct_brk=offsetof(struct mm_struct,brk),
-	.mm_struct_struct_start_stack=offsetof(struct mm_struct,start_stack),
-	.mm_struct_struct_arg_start=offsetof(struct mm_struct,arg_start),
-	.mm_struct_struct_arg_end=offsetof(struct mm_struct,arg_end),
-	.mm_struct_struct_pgd=offsetof(struct mm_struct,pgd),
-	.mm_struct_struct_mmap=offsetof(struct mm_struct,mmap),
-	.vm_area_struct_struct_vm_start=offsetof(struct vm_area_struct,vm_start),
-	.vm_area_struct_struct_vm_end=offsetof(struct vm_area_struct,vm_end),
-	.vm_area_struct_struct_vm_next=offsetof(struct vm_area_struct,vm_next),
-	.vm_area_struct_struct_vm_file=offsetof(struct vm_area_struct,vm_file),
-	.thread_info_struct_cpu_context=offsetof(struct thread_info,cpu_context),
-	.cpu_context_save_struct_sp=offsetof(struct cpu_context_save,sp),
-	.file_struct_f_path=offsetof(struct file,f_path),
-	.path_struct_mnt=offsetof(struct path,mnt),
-	.path_struct_dentry=offsetof(struct path,dentry),
-	.dentry_struct_d_parent=offsetof(struct dentry,d_parent),
-	.dentry_struct_d_name=offsetof(struct dentry,d_name),
-	.qstr_struct_name=offsetof(struct qstr,name),
-	.vfsmount_struct_mnt_mountpoint=offsetof(struct vfsmount,mnt_mountpoint),
-	.vfsmount_struct_mnt_root=offsetof(struct vfsmount,mnt_root),
-	.vfsmount_struct_mnt_parent=offsetof(struct vfsmount,mnt_parent),
-	.pgdir_shift=21, //PGDIR_SHIFT,
-	.ptrs_per_pte=512, //PTRS_PER_PTE,
-	.phys_offset=PHYS_OFFSET,
-	.page_offset=PAGE_OFFSET,
-	.page_shift=PAGE_SHIFT,
-	.page_size=PAGE_SIZE,
-	.task_struct_struct_thread_group =offsetof(struct task_struct, thread_group),
-	.task_struct_struct_utime= offsetof(struct task_struct, utime),
-	.task_struct_struct_stime= offsetof(struct task_struct, stime),
-	.list_head_struct_next=offsetof(struct list_head, next),
-	.list_head_struct_prev=offsetof(struct list_head, prev),
-	.thread_info_struct_cpu=offsetof(struct thread_info,cpu),
-	.task_struct_struct_prio=offsetof(struct task_struct, prio),
-	.task_struct_struct_static_prio=offsetof(struct task_struct, static_prio),
-	.rq_struct_curr=0,
-	.task_struct_struct_static_prio=offsetof(struct task_struct, static_prio),
-	.task_struct_struct_normal_prio=offsetof(struct task_struct, normal_prio),
-	.task_struct_struct_rt_priority=offsetof(struct task_struct, rt_priority),
-	.task_struct_struct_se=offsetof(struct task_struct, se),
-	.sched_entity_struct_exec_start=offsetof(struct sched_entity,exec_start),
-	.sched_entity_struct_sum_exec_runtime=offsetof(struct sched_entity,sum_exec_runtime),
-	.sched_entity_struct_prev_sum_exec_runtime=offsetof(struct sched_entity,prev_sum_exec_runtime),
-#if defined(CONFIG_SCHEDSTATS) || defined(CONFIG_TASK_DELAY_ACCT)
-	.task_struct_struct_sched_info=offsetof(struct task_struct, sched_info),
-	.sched_info_struct_pcount=offsetof(struct sched_info,pcount),
-	.sched_info_struct_run_delay=offsetof(struct sched_info,run_delay),
-	.sched_info_struct_last_arrival=offsetof(struct sched_info,last_arrival),
-	.sched_info_struct_last_queued=offsetof(struct sched_info,last_queued),
-#else
-	.task_struct_struct_sched_info=0x1223,
-	.sched_info_struct_pcount=0x1224,
-	.sched_info_struct_run_delay=0x1225,
-	.sched_info_struct_last_arrival=0x1226,
-	.sched_info_struct_last_queued=0x1227,
-#endif
-#ifdef CONFIG_DEBUG_MUTEXES
-	.task_struct_struct_blocked_on=offsetof(struct task_struct,blocked_on),
-	.mutex_waiter_struct_list=offsetof(struct mutex_waiter,list),
-	.mutex_waiter_struct_task=offsetof(struct mutex_waiter,task),
-#else
-	.task_struct_struct_blocked_on=0x1228,
-	.mutex_waiter_struct_list=0x1229,
-	.mutex_waiter_struct_task=0x122a,
-#endif
-#ifdef CONFIG_FAIR_GROUP_SCHED
-	.sched_entity_struct_cfs_rq_struct=offsetof(struct sched_entity, cfs_rq),
-#else
-	.sched_entity_struct_cfs_rq_struct=0x1223,
-#endif
-	.cfs_rq_struct_rq_struct=0,
-#ifdef CONFIG_FRAME_POINTER
-	.gaf_fp=1,
-#else
-	.gaf_fp=0,
-#endif
-	.GAFINFOCheckSum=0
-};
-#endif
-

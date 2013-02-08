@@ -47,6 +47,11 @@ config IMX074
 	default y
 	---help---
 	SONY 13.5 MP Bayer Sensor
+config SENSOR_S5K5CCAF
+	bool "Sensor s5k5cc 1/5 (3M/AF)"
+	default n
+	---help---
+	  SAMSUNG 3M CMOS Sensor
 config WEBCAM_OV7692
 	bool "Sensor OV7692 (VGA YUV)"
 	depends on MSM_CAMERA && ARCH_MSM8X60 && !MSM_CAMERA_V4L2
@@ -154,3 +159,9 @@ config SENSOR_SR030PC30
 	bool "use VGS camera feature"
 	default n
 
+config SENSOR_SR030PC30_T679
+	bool "use T679 VGS camera feature"
+	default n
+config SENSOR_SR130PC10
+	bool "use SGH-I847[Apache ATT] VGA camera feature"
+	default n

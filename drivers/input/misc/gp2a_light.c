@@ -45,7 +45,11 @@
 /*******************************************************************************/
 
 
+#ifdef CONFIG_MACH_ARIESVE
 #define SENSOR_NAME "light"
+#else
+#define SENSOR_NAME "light_sensor"
+#endif
 
 #define SENSOR_DEFAULT_DELAY            (200)   /* 200 ms */
 #define SENSOR_MAX_DELAY                (2000)  /* 2000 ms */
@@ -53,7 +57,7 @@
 #define ABS_WAKE                        (ABS_MISC)
 #define ABS_CONTROL_REPORT              (ABS_THROTTLE)
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 #define MSM_LIGHTSENSOR_ADC_READ
 #endif
 //#define PMIC_GPIO_PROX_EN	15 /* PMIC GPIO 16 */

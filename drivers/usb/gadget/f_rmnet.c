@@ -5,7 +5,7 @@
  * Copyright (C) 2003-2004 Robert Schwebel, Benedikt Spranger
  * Copyright (C) 2003 Al Borchers (alborchers@steinerpoint.com)
  * Copyright (C) 2008 Nokia Corporation
- * Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -241,7 +241,7 @@ static void rmnet_free_qmi(struct qmi_buf *qmi)
 }
 /*
  * Allocate a usb_request and its buffer.  Returns a pointer to the
- * usb_request or NULL if there is an error.
+ * usb_request or a error code if there is an error.
  */
 static struct usb_request *
 rmnet_alloc_req(struct usb_ep *ep, unsigned len, gfp_t kmalloc_flags)
@@ -338,10 +338,12 @@ static void rmnet_smd_notify(void *priv, unsigned event)
 {
 	struct rmnet_smd_info *smd_info = priv;
 	int len = atomic_read(&smd_info->rx_pkt);
+	struct rmnet_dev *dev = (struct rmnet_dev *) smd_info->tx_tlet.data;
 
 	switch (event) {
 	case SMD_EVENT_DATA: {
-
+		if (!atomic_read(&dev->online))
+			break;
 		if (len && (smd_write_avail(smd_info->ch) >= len))
 			tasklet_schedule(&smd_info->rx_tlet);
 
@@ -518,6 +520,14 @@ rmnet_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 			goto invalid;
 		else {
 			spin_lock(&dev->lock);
+			if (list_empty(&dev->qmi_resp_q)) {
+				INFO(cdev, "qmi resp empty "
+					" req%02x.%02x v%04x i%04x l%d\n",
+					ctrl->bRequestType, ctrl->bRequest,
+					w_value, w_index, w_length);
+				spin_unlock(&dev->lock);
+				goto invalid;
+			}
 			resp = list_first_entry(&dev->qmi_resp_q,
 					struct qmi_buf, list);
 			list_del(&resp->list);
@@ -578,12 +588,12 @@ static void rmnet_start_rx(struct rmnet_dev *dev)
 	struct usb_composite_dev *cdev = dev->cdev;
 	int status;
 	struct usb_request *req;
-	struct list_head *act, *tmp;
+	struct list_head *pool = &dev->rx_idle;
 	unsigned long flags;
 
 	spin_lock_irqsave(&dev->lock, flags);
-	list_for_each_safe(act, tmp, &dev->rx_idle) {
-		req = list_entry(act, struct usb_request, list);
+	while (!list_empty(pool)) {
+		req = list_entry(pool->next, struct usb_request, list);
 		list_del(&req->list);
 
 		spin_unlock_irqrestore(&dev->lock, flags);
@@ -592,7 +602,7 @@ static void rmnet_start_rx(struct rmnet_dev *dev)
 
 		if (status) {
 			ERROR(cdev, "rmnet data rx enqueue err %d\n", status);
-			list_add_tail(&req->list, &dev->rx_idle);
+			list_add_tail(&req->list, pool);
 			break;
 		}
 	}
@@ -774,12 +784,18 @@ static void rmnet_disconnect_work(struct work_struct *w)
 	struct rmnet_dev *dev = container_of(w, struct rmnet_dev,
 					disconnect_work);
 
-	atomic_set(&dev->notify_count, 0);
-
 	tasklet_kill(&dev->smd_ctl.rx_tlet);
 	tasklet_kill(&dev->smd_ctl.tx_tlet);
 	tasklet_kill(&dev->smd_data.rx_tlet);
-	tasklet_kill(&dev->smd_data.rx_tlet);
+	tasklet_kill(&dev->smd_data.tx_tlet);
+
+	smd_close(dev->smd_ctl.ch);
+	dev->smd_ctl.flags = 0;
+
+	smd_close(dev->smd_data.ch);
+	dev->smd_data.flags = 0;
+
+	atomic_set(&dev->notify_count, 0);
 
 	list_for_each_safe(act, tmp, &dev->rx_queue) {
 		req = list_entry(act, struct usb_request, list);
@@ -799,11 +815,6 @@ static void rmnet_disconnect_work(struct work_struct *w)
 		list_add_tail(&qmi->list, &dev->qmi_resp_pool);
 	}
 
-	smd_close(dev->smd_ctl.ch);
-	dev->smd_ctl.flags = 0;
-
-	smd_close(dev->smd_data.ch);
-	dev->smd_data.flags = 0;
 }
 
 /* SMD close may sleep
@@ -834,7 +845,7 @@ static void rmnet_connect_work(struct work_struct *w)
 {
 	struct rmnet_dev *dev = container_of(w, struct rmnet_dev, connect_work);
 	struct usb_composite_dev *cdev = dev->cdev;
-	int ret;
+	int ret = 0;
 
 	/* Control channel for QMI messages */
 	ret = smd_open(rmnet_ctl_ch, &dev->smd_ctl.ch,
@@ -856,16 +867,6 @@ static void rmnet_connect_work(struct work_struct *w)
 	wait_event(dev->smd_data.wait, test_bit(CH_OPENED,
 				&dev->smd_data.flags));
 
-	usb_ep_enable(dev->epin, ep_choose(cdev->gadget,
-				&rmnet_hs_in_desc,
-				&rmnet_fs_in_desc));
-	usb_ep_enable(dev->epout, ep_choose(cdev->gadget,
-				&rmnet_hs_out_desc,
-				&rmnet_fs_out_desc));
-	usb_ep_enable(dev->epnotify, ep_choose(cdev->gadget,
-				&rmnet_hs_notify_desc,
-				&rmnet_fs_notify_desc));
-
 	atomic_set(&dev->online, 1);
 	/* Queue Rx data requests */
 	rmnet_start_rx(dev);
@@ -879,6 +880,37 @@ static int rmnet_set_alt(struct usb_function *f,
 		unsigned intf, unsigned alt)
 {
 	struct rmnet_dev *dev = container_of(f, struct rmnet_dev, function);
+	struct usb_composite_dev *cdev = dev->cdev;
+	int ret = 0;
+
+	ret = usb_ep_enable(dev->epin, ep_choose(cdev->gadget,
+				&rmnet_hs_in_desc,
+				&rmnet_fs_in_desc));
+	if (ret) {
+		ERROR(cdev, "can't enable %s, result %d\n",
+					dev->epin->name, ret);
+		return ret;
+	}
+	ret = usb_ep_enable(dev->epout, ep_choose(cdev->gadget,
+				&rmnet_hs_out_desc,
+				&rmnet_fs_out_desc));
+	if (ret) {
+		ERROR(cdev, "can't enable %s, result %d\n",
+					dev->epout->name, ret);
+		usb_ep_disable(dev->epin);
+		return ret;
+	}
+
+	ret = usb_ep_enable(dev->epnotify, ep_choose(cdev->gadget,
+				&rmnet_hs_notify_desc,
+				&rmnet_fs_notify_desc));
+	if (ret) {
+		ERROR(cdev, "can't enable %s, result %d\n",
+					dev->epnotify->name, ret);
+		usb_ep_disable(dev->epin);
+		usb_ep_disable(dev->epout);
+		return ret;
+	}
 
 	queue_work(dev->wq, &dev->connect_work);
 	return 0;
@@ -1013,7 +1045,7 @@ static int rmnet_bind(struct usb_configuration *c, struct usb_function *f)
 	}
 
 	for (i = 0; i < TX_REQ_MAX; i++) {
-		req = rmnet_alloc_req(dev->epout, TX_REQ_SIZE, GFP_KERNEL);
+		req = rmnet_alloc_req(dev->epin, TX_REQ_SIZE, GFP_KERNEL);
 		if (IS_ERR(req)) {
 			ret = PTR_ERR(req);
 			goto free_buf;
@@ -1039,7 +1071,7 @@ rmnet_unbind(struct usb_configuration *c, struct usb_function *f)
 	tasklet_kill(&dev->smd_ctl.rx_tlet);
 	tasklet_kill(&dev->smd_ctl.tx_tlet);
 	tasklet_kill(&dev->smd_data.rx_tlet);
-	tasklet_kill(&dev->smd_data.rx_tlet);
+	tasklet_kill(&dev->smd_data.tx_tlet);
 
 	flush_workqueue(dev->wq);
 	rmnet_free_buf(dev);
@@ -1103,7 +1135,6 @@ int rmnet_function_add(struct usb_configuration *c)
 	dev->function.setup = rmnet_setup;
 	dev->function.set_alt = rmnet_set_alt;
 	dev->function.disable = rmnet_disable;
-	dev->function.hidden = 1; //start disabled
 
 	ret = usb_add_function(c, &dev->function);
 	if (ret)

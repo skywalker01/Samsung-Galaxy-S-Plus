@@ -53,6 +53,7 @@ typedef struct _param {
 //FSRPartI pstPartI;
 int param_n1stVun;
 char mBuf[PARAM_SIZE];
+
 //extern struct proc_dir_entry *fsr_proc_dir;
 
 struct file *filp;
@@ -89,7 +90,7 @@ static int param_read_proc_debug(char *page, char **start, off_t offset, int cou
 	long l;
 	int ret;
 
-	printk("%s %d\n", __func__, __LINE__);
+	printk(KERN_WARNING"%s %d\n", __func__, __LINE__);
 
 
 	*eof = 1;
@@ -97,15 +98,15 @@ static int param_read_proc_debug(char *page, char **start, off_t offset, int cou
 
 
 	l = sizeof(PARAM);
-	printk("l = %ld\n", l);
+	printk(KERN_WARNING"l = %ld\n", l);
 
 	ret = kernel_read(filp, 0, mBuf, l);
 
 
        memcpy(&efs, mBuf, sizeof(PARAM));
-	printk("PARAM booting_now : %d\n",efs.booting_now);
-	printk("PARAM fota_mode   : %d\n",efs.fota_mode);
-	printk("PARAM efs_info	  : %s\n",efs.efs_info);
+	printk(KERN_WARNING"PARAM booting_now : %d\n",efs.booting_now);
+	printk(KERN_WARNING"PARAM fota_mode   : %d\n",efs.fota_mode);
+	printk(KERN_WARNING"PARAM efs_info	  : %s\n",efs.efs_info);
 
 
    //   filp_close(filp, current->files);
@@ -126,7 +127,7 @@ static int param_write_proc_debug(struct file *file, const char *buffer,
 	long l;
 	int ret;
 
-	printk("%s %d\n", __func__, __LINE__);
+	printk(KERN_WARNING"%s %d\n", __func__, __LINE__);
 
 	if (count < 1)
 		return -EINVAL;
@@ -149,11 +150,11 @@ static int param_write_proc_debug(struct file *file, const char *buffer,
 	memset(mBuf, 0xff, PARAM_SIZE);
 
        l = sizeof(PARAM);
-	printk("l = %ld\n", l);
+	printk(KERN_WARNING"l = %ld\n", l);
 
        ret = kernel_read(filp, 0, mBuf, l);
 	if(ret<0) {
-		printk("Partition READ FAIL!\n");
+		printk(KERN_WARNING"Partition READ FAIL!\n");
 		return ret;
 	}
 
@@ -167,7 +168,7 @@ static int param_write_proc_debug(struct file *file, const char *buffer,
 	// read first block from param block
        ret=kernel_write(filp, mBuf, l,0);
 	if(ret<0) {
-		printk("Partition write FAIL!\n");
+		printk(KERN_WARNING"Partition write FAIL!\n");
 		return ret;
 	}
 
@@ -181,6 +182,108 @@ static int param_write_proc_debug(struct file *file, const char *buffer,
 
 
 
+
+
+static int param_read_proc_debug2(char *page, char **start, off_t offset, int count, int *eof, void *data)
+{
+
+
+
+	PARAM efs;
+	char *dp;
+	long l;
+	int ret;
+
+	printk(KERN_WARNING"%s %d\n", __func__, __LINE__);
+
+
+	*eof = 1;
+	memset(mBuf, 0xff, PARAM_SIZE);
+
+
+	l = sizeof(PARAM);
+	printk(KERN_WARNING"l = %ld\n", l);
+
+	ret = kernel_read(filp, 0, mBuf, l);
+
+
+       memcpy(&efs, mBuf, sizeof(PARAM));
+
+       printk(KERN_WARNING"PARAM Read sud.ini : [%s]\n",efs.str2);
+
+   //   filp_close(filp, current->files);
+
+
+	return sprintf(page, "%s", efs.str2);
+
+}
+
+
+
+static int param_write_proc_debug2(struct file *file, const char *buffer,
+		                            unsigned long count, void *data)
+{
+
+	char *buf;
+     	PARAM efs;
+	long l;
+	int ret;
+
+	printk(KERN_WARNING"%s %d\n", __func__, __LINE__);
+
+
+	if (count < 1)
+		return -EINVAL;
+
+
+	buf = kmalloc(count, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+
+	if (copy_from_user(buf, buffer, count)) {
+		kfree(buf);
+		return -EFAULT;
+	}
+
+	memset(mBuf, 0xff, PARAM_SIZE);
+
+       l = sizeof(PARAM);
+	printk(KERN_WARNING"l = %ld\n", l);
+
+       ret = kernel_read(filp, 0, mBuf, l);
+	if(ret<0) {
+		printk(KERN_WARNING"Partition READ FAIL!\n");
+		return ret;
+	}
+
+
+	memcpy(&efs, mBuf, sizeof(PARAM));
+	// copy user data to efs
+	memset(efs.str2, 0x0, sizeof(efs.str2));
+	memcpy(efs.str2, buf, (int)count);
+	memcpy(mBuf, &efs, sizeof(PARAM));
+
+	// read first block from param block
+       ret=kernel_write(filp, mBuf, l,0);
+	if(ret<0) {
+		printk(KERN_WARNING"Partition write FAIL!\n");
+		return ret;
+	}
+
+       printk(KERN_WARNING"PARAM Write sud.ini : [%s]\n",efs.str2);
+
+ //     filp_close(filp, current->files);
+
+	kfree(buf);
+	return count;
+
+}
+
+
+
+
+
 extern int (*set_recovery_mode)(void);
 
 int _set_recovery_mode(void)
@@ -190,9 +293,7 @@ int _set_recovery_mode(void)
 	long l;
 	int ret;
 
-	printk("%s %d\n", __func__, __LINE__);
-
-
+	printk(KERN_WARNING"%s %d\n", __func__, __LINE__);
 
 
 	memset(mBuf, 0xff, PARAM_SIZE);
@@ -201,7 +302,7 @@ int _set_recovery_mode(void)
 
        ret = kernel_read(filp, 0, mBuf, l);
 	if(ret<0) {
-		printk("Partition READ FAIL!\n");
+		printk(KERN_WARNING"Partition READ FAIL!\n");
 		return ret;
 	}
 
@@ -213,7 +314,7 @@ int _set_recovery_mode(void)
 	// read first block from param block
        ret=kernel_write(filp, mBuf, l,0);
 	if(ret<0) {
-		printk("Partition write FAIL!\n");
+		printk(KERN_WARNING"Partition write FAIL!\n");
 		return ret;
 	}
 
@@ -229,23 +330,35 @@ static int __init param_init(void)
 {
 
 	struct proc_dir_entry *ent;
+	struct proc_dir_entry *ent2;
+
+	printk(KERN_WARNING"param_init !\n");
 
 	fsr_proc_dir = proc_mkdir(FSR_PROC_DIR, NULL);
+
+
 	if (!fsr_proc_dir)
 	{
-		printk("proc_mkdir FAIL!\n");
+		printk(KERN_WARNING"param_init proc_mkdir FAIL!\n");
 	        return NULL;
 	}
+
+	ent2 = create_proc_entry("sud.ini", S_IFREG | S_IWUSR | S_IRUGO, fsr_proc_dir);
+	ent2->read_proc = param_read_proc_debug2;
+	ent2->write_proc = param_write_proc_debug2;
+
 
 	ent = create_proc_entry("efs_info", S_IFREG | S_IWUSR | S_IRUGO, fsr_proc_dir);
 	ent->read_proc = param_read_proc_debug;
 	ent->write_proc = param_write_proc_debug;
 
+
+
 	set_recovery_mode = _set_recovery_mode;
 
 		filp = filp_open("/dev/block/mmcblk0p14", O_RDWR, 0666);
 	if (IS_ERR(filp)) {
-		printk("js js js js js js file open error\n");
+		printk(KERN_WARNING"js js js js js js file open error\n");
 		return;
 	}
 
@@ -259,6 +372,7 @@ static void __exit param_exit(void)
 
 
 	remove_proc_entry("efs_info", fsr_proc_dir);
+	remove_proc_entry("sud.ini", fsr_proc_dir);
 
 	filp_close(filp, current->files);
 

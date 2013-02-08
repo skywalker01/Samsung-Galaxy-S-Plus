@@ -269,6 +269,7 @@ int afe_config_fm_volume(uint16_t volume)
 	return rc;
 error_adsp_enable:
 	msm_adsp_put(afe->mod);
+	afe->mod = NULL;
 error_adsp_get:
 	mutex_unlock(&afe->lock);
 	return rc;

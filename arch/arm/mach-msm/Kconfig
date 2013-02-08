@@ -21,6 +21,7 @@ config ARCH_MSM7X25
 config ARCH_MSM7X27
 	bool "MSM7x27"
 	select ARCH_MSM_ARM11
+	select ARCH_HAS_BARRIERS if MSM_SOC_REV_NONE
 	select MSM_VIC
 	select CPU_V6
 	select MSM_REMOTE_SPINLOCK_SWP
@@ -71,6 +72,34 @@ config ARCH_MSM8X60
 	select MSM_GPIOMUX
 	select MSM_BUS_SCALING
 	select MSM_SECURE_IO
+	select ARCH_INLINE_SPIN_TRYLOCK
+	select ARCH_INLINE_SPIN_TRYLOCK_BH
+	select ARCH_INLINE_SPIN_LOCK
+	select ARCH_INLINE_SPIN_LOCK_BH
+	select ARCH_INLINE_SPIN_LOCK_IRQ
+	select ARCH_INLINE_SPIN_LOCK_IRQSAVE
+	select ARCH_INLINE_SPIN_UNLOCK
+	select ARCH_INLINE_SPIN_UNLOCK_BH
+	select ARCH_INLINE_SPIN_UNLOCK_IRQ
+	select ARCH_INLINE_SPIN_UNLOCK_IRQRESTORE
+	select ARCH_INLINE_READ_TRYLOCK
+	select ARCH_INLINE_READ_LOCK
+	select ARCH_INLINE_READ_LOCK_BH
+	select ARCH_INLINE_READ_LOCK_IRQ
+	select ARCH_INLINE_READ_LOCK_IRQSAVE
+	select ARCH_INLINE_READ_UNLOCK
+	select ARCH_INLINE_READ_UNLOCK_BH
+	select ARCH_INLINE_READ_UNLOCK_IRQ
+	select ARCH_INLINE_READ_UNLOCK_IRQRESTORE
+	select ARCH_INLINE_WRITE_TRYLOCK
+	select ARCH_INLINE_WRITE_LOCK
+	select ARCH_INLINE_WRITE_LOCK_BH
+	select ARCH_INLINE_WRITE_LOCK_IRQ
+	select ARCH_INLINE_WRITE_LOCK_IRQSAVE
+	select ARCH_INLINE_WRITE_UNLOCK
+	select ARCH_INLINE_WRITE_UNLOCK_BH
+	select ARCH_INLINE_WRITE_UNLOCK_IRQRESTORE
+	select MSM_SCHED_FAST_CPU_ONLINE
 
 endchoice
 
@@ -161,38 +190,64 @@ config MACH_MSM7X27_FFA
 	  Support for the Qualcomm MSM7x27 FFA eval board.
 
 config MACH_ARIESVE
-       depends on ARCH_MSM7X30
-       depends on !MSM_STACKED_MEMORY
-       select APPSBOOT_3M_CONFIG
-       select APPLY_GA_SOLUTION
-       default n
-       bool "ARIESVE"
-       help
+	depends on ARCH_MSM7X30
+	depends on !MSM_STACKED_MEMORY
+	select APPSBOOT_3M_CONFIG
+	default n
+	bool "ARIESVE"
+	help
 	  Support for the Samsung Aries VE board.
 
 config MACH_ANCORA
-       depends on ARCH_MSM7X30
-       depends on !MSM_STACKED_MEMORY
-       select APPSBOOT_3M_CONFIG
-       select APPLY_GA_SOLUTION
-       default n
-       bool "ANCORA"
-       help
+	depends on ARCH_MSM7X30
+	depends on !MSM_STACKED_MEMORY
+	select APPSBOOT_3M_CONFIG
+	default n
+	bool "ANCORA"
+	help
 	  Support for the Samsung Ancora board.
 
+config MACH_APACHE
+	depends on ARCH_MSM7X30
+	depends on !MSM_STACKED_MEMORY
+	select APPSBOOT_3M_CONFIG
+	default n
+	bool "APACHE"
+	help
+	  Support for the Samsung Apache board.
+
+config MACH_ANCORA_TMO
+	depends on ARCH_MSM7X30
+	depends on !MSM_STACKED_MEMORY
+	select APPSBOOT_3M_CONFIG
+	default n
+	bool "ANCORA_TMO"
+	help
+	  Support for the Samsung Ancora TMO board.
+
 config MACH_GODART
-       depends on ARCH_MSM7X30
-       depends on !MSM_STACKED_MEMORY
-       select APPSBOOT_3M_CONFIG
-       select APPLY_GA_SOLUTION
-       default n
-       bool "GODART"
-       help
+	depends on ARCH_MSM7X30
+	depends on !MSM_STACKED_MEMORY
+	select APPSBOOT_3M_CONFIG
+	default n
+	bool "GODART"
+	help
 	  Support for the Samsung Godart board.
+
+config HW_REV_USING_SMB328
+	hex "Select H/W Revision using smb328"
+	depends on CHARGER_SMB328A
+	default "0x00"
+
+config MICROUSB_DEBUG
+	bool "MICROUSB_DEBUG"
+
+config BATT_MICROVOLT_UNIT
+	bool "use micro volt unit for battery voltage"
 
 config BOARD_REVISION
 	hex "Select H/W Revision"
-	depends on MACH_ARIESVE || MACH_ANCORA  || MACH_GODART
+	depends on MACH_ARIESVE || MACH_ANCORA  || MACH_GODART || MACH_ANCORA_TMO || MACH_APACHE
 	default "0x00"
 
 config MACH_MSM7X30_SURF
@@ -389,10 +444,7 @@ endmenu
 
 config  APPSBOOT_3M_CONFIG
 	bool
-
-config APPLY_GA_SOLUTION
-	bool
-
+	
 config MSM_STACKED_MEMORY
 	bool "Stacked Memory"
 	default y
@@ -488,7 +540,7 @@ choice
 		bool "DG Timer"
 	help
 	  High resolution timer.
-endchoice
+endchoice	  
 
 choice
 	prompt "Suspend sleep mode"
@@ -515,7 +567,7 @@ choice
 
 	config MSM7X00A_SLEEP_WAIT_FOR_INTERRUPT
 		bool "Wait for interrupt"
-endchoice
+endchoice	  
 
 config MSM7X00A_SLEEP_MODE
 	int
@@ -550,7 +602,7 @@ choice
 
 	config MSM7X00A_IDLE_SLEEP_WAIT_FOR_INTERRUPT
 		bool "Wait for interrupt"
-endchoice
+endchoice	  
 
 config MSM7X00A_IDLE_SLEEP_MODE
 	int
@@ -962,6 +1014,37 @@ config MSM_CPU_FREQ_MIN
 	depends on MSM_CPU_FREQ_SET_MIN_MAX
 	default 245760
 
+config MSM_CPU_FREQ_EXTREME_UV
+	bool "Enable Extreme Undervolt frequency mode"
+	depends on ARCH_MSM7X30
+	default n	
+	help
+	  Enabling this option change all voltage of all frequency for the extreme undervolt.
+
+	  If unsure, say N.
+	  
+config MSM_CPU_FREQ_OVERCLOCKING
+	bool "Enable support for CPU overclocking"
+	depends on ARCH_MSM7X30
+	default y
+	help
+	  Enabling this option allow to use all overclock frequencies.
+
+config MSM_CPU_FREQ_EXTREME_OVERCLOCKING
+	bool "Enable 1881mhz CPU overclocking"
+	depends on ARCH_MSM7X30
+	default n
+	help
+	  Enabling this option allow to use 1881mhz overclock frequency.
+	  Warning: prolonged use of this frequency cause instability of system!
+
+config BIGMEM_MODE
+	bool "Bigmem mode enable 375MB of free RAM"
+	depends on ARCH_MSM7X30
+	default n
+	help
+	  Enabling this option free 375MB of ram, but the 720P video recorder breaks.
+
 endif # CPU_FREQ_MSM
 
 config MSM_CPU_AVS
@@ -1066,7 +1149,7 @@ config WIFI_CONTROL_FUNC
 	bool "Enable WiFi control function abstraction"
 	help
 	  Enables Power/Reset/Carddetect function abstraction
-
+	
 config WIFI_MEM_PREALLOC
 	depends on WIFI_CONTROL_FUNC
 	bool "Preallocate memory for WiFi buffers"
@@ -1100,14 +1183,6 @@ config SURF_FFA_GPIO_KEYPAD
 	default y
 	help
 	  Select if the GPIO keypad is attached.
-
-config CLOCK_BASED_SLEEP_LIMIT
-	default y
-	bool "Set sleep limitation based on clock usage"
-	help
-	  The application processor checks for enabled clocks and
-	  decides accordingly the sleep limitation which it informs
-	  the modem to use.
 
 config MSM_SLEEP_TIME_OVERRIDE
 	bool "Allow overriding suspend/sleep time with PM module parameter"
@@ -1233,9 +1308,20 @@ config MSM_RPM_LOG
 	  information about RPM operation. The driver outputs the messages
 	  via a debugfs node.
 
+config MSM_RPM_STATS_LOG
+	tristate "MSM Resource Power Manager Stat Driver"
+	depends on DEBUG_FS
+	depends on ARCH_MSM8X60
+	default n
+	  help
+	  This option enables a driver which reads RPM messages from a shared
+	  memory location. These messages provide statistical information about
+	  the low power modes that RPM enters. The drivers outputs the message
+	  via a debugfs node.
+
 config SMMU
-	bool "System MMU support"
-	depends on MMU
+        bool "System MMU support"
+        depends on MMU
 	select IOMMU_API
 	select SMMU_8X60 if ARCH_MSM8X60
 	depends on ARCH_MSM8X60
@@ -1300,6 +1386,9 @@ config MSM_SLEEP_STATS
 	depends on CPU_IDLE
 	default n
 
+config MSM_SLEEP_STATS_DEVICE
+	bool "Enable exporting of MSM sleep device stats to userspace"
+
 config MSM_STANDALONE_POWER_COLLAPSE
        bool "Enable standalone power collapse"
        default n
@@ -1327,4 +1416,26 @@ config BT_MSM_PINTEST
 	  Bluetooth MSM Pin Connectivity test module.
 	  This driver provides support for verifying the MSM to BT pin
 	  connectivity.
+
+config VP_A2220
+	tristate "A2220 Voice Processor Driver"
+	depends on I2C
+	help
+	  A2220 Voice Processor Driver implemented by ysseo.
+
+config MSM_SCHED_FAST_CPU_ONLINE
+	bool "Fast scheduler update for CPU online"
+	depends on ARCH_MSM8X60
+	default n
+	help
+	  Bypass scheduler domain reconstruction when onlining the second
+	  CPU on 8X60 to speed up operation.
+
+config FORCE_FAST_CHARGE
+	bool "Force AC charge mode at will"
+	default y
+	help
+	  A simple sysfs interface to force adapters that
+	  are detected as USB to charge as AC.
+
 endif

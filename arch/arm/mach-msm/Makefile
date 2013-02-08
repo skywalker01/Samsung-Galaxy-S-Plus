@@ -40,7 +40,6 @@ obj-$(CONFIG_MSM_JTAG_V7) += jtag-v7.o
 quiet_cmd_mkrpcsym = MKCAP   $@
       cmd_mkrpcsym = $(PERL) $(srctree)/$(src)/mkrpcsym.pl $< $@
 
-# does not clean up for some reason
 target += smd_rpc_sym.c
 $(obj)/smd_rpc_sym.c: $(src)/smd_rpc_sym $(src)/mkrpcsym.pl
 	$(call if_changed,mkrpcsym)
@@ -149,6 +148,12 @@ endif
 ifdef CONFIG_MACH_ANCORA
 obj-$(CONFIG_ARCH_MSM7X30) += board-ancora.o devices-msm7x30.o memory_topology.o samsung_vibrator.o
 endif
+ifdef CONFIG_MACH_APACHE
+obj-$(CONFIG_ARCH_MSM7X30) += board-apache.o devices-msm7x30.o memory_topology.o samsung_vibrator.o
+endif
+ifdef CONFIG_MACH_ANCORA_TMO
+obj-$(CONFIG_ARCH_MSM7X30) += board-ancora_tmo.o devices-msm7x30.o memory_topology.o samsung_vibrator.o
+endif
 ifdef CONFIG_MACH_GODART
 obj-$(CONFIG_ARCH_MSM7X30) += board-godart.o devices-msm7x30.o memory_topology.o samsung_vibrator.o
 endif
@@ -169,6 +174,7 @@ obj-$(CONFIG_MSM_SDIO_SMEM) += sdio_smem.o
 obj-$(CONFIG_PMIC8058) += pmic8058-gpio.o pmic8058-mpp.o
 obj-$(CONFIG_ARCH_MSM7X30) += spm.o
 obj-$(CONFIG_MSM_RPM) += rpm.o rpm_resources.o mpm.o
+obj-$(CONFIG_MSM_RPM_STATS_LOG) += rpm_stats.o
 obj-$(CONFIG_MSM_RPM_LOG) += rpm_log.o
 obj-$(CONFIG_MSM_XO) += msm_xo.o
 obj-$(CONFIG_MSM_BUS_SCALING)	+= msm_bus_core.o msm_bus_fabric.o msm_bus_board_8660.o
@@ -193,5 +199,6 @@ else
 obj-y	+= gpio.o
 endif
 obj-$(CONFIG_MSM_SLEEP_STATS) += msm_sleep_stats.o idle_stats.o
+obj-$(CONFIG_MSM_SLEEP_STATS_DEVICE) += idle_stats_device.o
 obj-$(CONFIG_MSM_SHOW_RESUME_IRQ) += msm_show_resume_irq.o
 obj-$(CONFIG_BT_MSM_PINTEST)  += btpintest.o

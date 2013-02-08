@@ -49,7 +49,7 @@ struct android_usb_product {
 	 */
 	int num_functions;
 	char **functions;
-#if 1
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 /* soonyong.cho : Below variables are used for Samsung composite framework. */
         __u8 bDeviceClass;
 	__u8 bDeviceSubClass;
@@ -98,6 +98,7 @@ struct usb_mass_storage_platform_data {
 	char *product;
 	int release;
 
+	char can_stall;
 	/* number of LUNS */
 	int nluns;
 };

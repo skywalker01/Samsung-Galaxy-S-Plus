@@ -26,11 +26,31 @@
 #include "mmc_ops.h"
 #include "sd_ops.h"
 
+extern unsigned int board_hw_revision;
+
+// -------------------------------------------
+// ANCORA H/W Rev Chec
+// -------------------------------------------
+#define ANCORA_EXT_SD_CHECK_ROUTINE			1
+// -------------------------------------------
+
+#ifdef ANCORA_EXT_SD_CHECK_ROUTINE			1
 /* Macros assume PMIC GPIOs start at 0 */
 #define PM8058_GPIO_PM_TO_SYS(pm_gpio)     (pm_gpio + NR_GPIO_IRQS)
 #define PM8058_GPIO_SYS_TO_PM(sys_gpio)    (sys_gpio - NR_GPIO_IRQS)
 
 #define PMIC_GPIO_SD_PWR_EN_N  24  /* PMIC GPIO Number 25 */
+
+struct pm8058_gpio sd_pwr_en_n = {
+	.direction      = PM_GPIO_DIR_OUT,
+	.pull           = PM_GPIO_PULL_NO,
+	.vin_sel        = PM_GPIO_VIN_L5,
+	.function       = PM_GPIO_FUNC_NORMAL,
+	.inv_int_pol    = 0,
+	.out_strength   = PM_GPIO_STRENGTH_LOW,
+	.output_value   = 0,
+};
+#endif
 
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
@@ -64,16 +84,6 @@ static const unsigned int tacc_mant[] = {
 			__res |= resp[__off-1] << ((32 - __shft) % 32);	\
 		__res & __mask;						\
 	})
-
-struct pm8058_gpio sd_pwr_en_n = {
-	.direction      = PM_GPIO_DIR_OUT,
-	.pull           = PM_GPIO_PULL_NO,
-	.vin_sel        = PM_GPIO_VIN_L5,
-	.function       = PM_GPIO_FUNC_NORMAL,
-	.inv_int_pol    = 0,
-	.out_strength   = PM_GPIO_STRENGTH_LOW,
-	.output_value   = 0,
-};
 
 /*
  * Given the decoded CSD structure, decode the raw CID to our CID structure.
@@ -356,9 +366,11 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	int err;
 	u32 cid[4];
 	unsigned int max_dtr;
+
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	int retries;
 #endif
+
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
 
@@ -612,22 +624,23 @@ static void mmc_sd_detect(struct mmc_host *host)
 	mmc_release_host(host);
 
 	if (err) {
-
-
 		mmc_sd_remove(host);
+
 		mmc_claim_host(host);
 		mmc_detach_bus(host);
 		mmc_release_host(host);
 
-		rc = pm8058_gpio_config(PMIC_GPIO_SD_PWR_EN_N, &sd_pwr_en_n);
-		if (rc) {
-			pr_err("%s PMIC_GPIO_SD_PWR_EN_N config failed\n", __func__);
-			return rc;
+#ifdef ANCORA_EXT_SD_CHECK_ROUTINE
+		if( board_hw_revision <= 3 )
+		{
+			rc = pm8058_gpio_config(PMIC_GPIO_SD_PWR_EN_N, &sd_pwr_en_n);
+			if (rc) {
+				pr_err("%s PMIC_GPIO_SD_PWR_EN_N config failed\n", __func__);
+				return rc;
+			}
+			gpio_set_value_cansleep(PM8058_GPIO_PM_TO_SYS(PMIC_GPIO_SD_PWR_EN_N), 1);
 		}
-		gpio_set_value_cansleep(PM8058_GPIO_PM_TO_SYS(PMIC_GPIO_SD_PWR_EN_N), 1);
-
-
-
+#endif
 	}
 }
 
@@ -715,7 +728,7 @@ static void mmc_sd_attach_bus_ops(struct mmc_host *host)
 {
 	const struct mmc_bus_ops *bus_ops;
 
-	if (host->caps & MMC_CAP_NONREMOVABLE || !mmc_assume_removable)
+	if (!mmc_card_is_removable(host))
 		bus_ops = &mmc_sd_ops_unsafe;
 	else
 		bus_ops = &mmc_sd_ops;
@@ -737,12 +750,17 @@ int mmc_attach_sd(struct mmc_host *host, u32 ocr)
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
 
-	rc = pm8058_gpio_config(PMIC_GPIO_SD_PWR_EN_N, &sd_pwr_en_n);
-	if (rc) {
-		pr_err("%s PMIC_GPIO_SD_PWR_EN_N config failed\n", __func__);
-		return rc;
+#ifdef ANCORA_EXT_SD_CHECK_ROUTINE
+	if( board_hw_revision <= 3)
+	{
+		rc = pm8058_gpio_config(PMIC_GPIO_SD_PWR_EN_N, &sd_pwr_en_n);
+		if (rc) {
+			pr_err("%s PMIC_GPIO_SD_PWR_EN_N config failed\n", __func__);
+			return rc;
+		}
+		gpio_set_value_cansleep(PM8058_GPIO_PM_TO_SYS(PMIC_GPIO_SD_PWR_EN_N), 0);
 	}
-	gpio_set_value_cansleep(PM8058_GPIO_PM_TO_SYS(PMIC_GPIO_SD_PWR_EN_N), 0);
+#endif
 
 	mmc_sd_attach_bus_ops(host);
 

@@ -49,7 +49,11 @@ __setup("user_debug=", user_debug_setup);
 
 static void dump_mem(const char *, const char *, unsigned long, unsigned long);
 #ifdef CONFIG_KERNEL_DEBUG_SEC
-extern char sec_debug_info[30][256];
+struct sec_debug_info_struct {
+	char debug_info_str[30][256];
+	unsigned long debug_info_int[10];
+};
+extern struct sec_debug_info_struct sec_debug_info;
 extern int sec_kernel_panic;
 static int idx = 9;
 #endif
@@ -62,7 +66,7 @@ void dump_backtrace_entry(unsigned long where, unsigned long from, unsigned long
 	printk("[<%08lx>] (%s) from [<%08lx>] (%s)\n", where, sym1, from, sym2);
 #ifdef CONFIG_KERNEL_DEBUG_SEC
 	if(sec_kernel_panic && idx < 28){
-		sprintf(sec_debug_info[idx++],"(%s) from (%s)", sym1, sym2);
+		sprintf(sec_debug_info.debug_info_str[idx++],"(%s) from (%s)", sym1, sym2);
 	}
 #endif
 #else
@@ -789,3 +793,4 @@ void __init early_trap_init(void)
 	flush_icache_range(vectors, vectors + PAGE_SIZE);
 	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
 }
+

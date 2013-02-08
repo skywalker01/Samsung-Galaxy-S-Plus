@@ -29,6 +29,7 @@ obj-$(CONFIG_EP93XX_PWM)	+= ep93xx_pwm.o
 obj-$(CONFIG_DS1682)		+= ds1682.o
 obj-$(CONFIG_TI_DAC7512)	+= ti_dac7512.o
 obj-$(CONFIG_UID_STAT)		+= uid_stat.o
+obj-$(CONFIG_IFACE_STAT)	+= iface_stat.o
 obj-$(CONFIG_C2PORT)		+= c2port/
 obj-$(CONFIG_IWMC3200TOP)      += iwmc3200top/
 obj-y				+= eeprom/
@@ -50,6 +51,8 @@ obj-$(CONFIG_MSM_MEMORY_LOW_POWER_MODE_SUSPEND_DEEP_POWER_DOWN) \
 	+= msm_migrate_pages.o
 obj-$(CONFIG_PMIC8058_XOADC) += pmic8058-xoadc.o
 obj-$(CONFIG_PMIC8058_MISC) += pmic8058-misc.o
+obj-$(CONFIG_PMIC8058_BATTALARM) += pmic8058-batt-alarm.o
 obj-$(CONFIG_VIBETONZ)		+= vibetonz/
 obj-$(CONFIG_SAMSUNG_FM_SI4709)		+= fm_si4709/
 obj-$(CONFIG_USB_SWITCH_FSA9480)	+= fsa9480.o
+obj-$(CONFIG_VP_A2220) += a2220.o

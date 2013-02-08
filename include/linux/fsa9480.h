@@ -16,6 +16,11 @@
 
 void fsa9480_change_path_to_audio(u8 enable);
 
+#if defined(CONFIG_MACH_APACHE)
+struct fsa9480_platform_data {
+	void (*charger_cb) (bool attached);
+};
+#endif
 /*
   * FSA9480 Register definition
 */

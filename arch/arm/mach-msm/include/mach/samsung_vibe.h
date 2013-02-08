@@ -38,6 +38,10 @@
 #if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
 #define VIB_ON                              163
 #endif //CONFIG_MACH_OLIVER
+#if defined(CONFIG_MACH_ANCORA_TMO)
+#define VIB_ON								2
+
+#endif //CONFIG_MACH_ANCORA_TMO
 
 /* Type definition */
 #ifdef __KERNEL__

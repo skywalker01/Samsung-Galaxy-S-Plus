@@ -1613,7 +1613,7 @@ static int msm_get_camera_info(void __user *arg)
 
 	for (i = 0; i < camera_node; i++) {
 		info.has_3d_support[i] = 0;
-		info.is_internal_cam[i] = 0;
+		info.is_internal_cam[i] = 1;
 		info.s_mount_angle[i] = sensor_mount_angle[i];
 		switch (camera_type[i]) {
 		case FRONT_CAMERA_2D:
@@ -1623,6 +1623,7 @@ static int msm_get_camera_info(void __user *arg)
 			info.has_3d_support[i] = 1;
 			break;
 		case BACK_CAMERA_2D:
+            info.is_internal_cam[i] = 0;
 		default:
 			break;
 		}
@@ -2317,7 +2318,21 @@ static long msm_ioctl_config(struct file *filep, unsigned int cmd,
 	}
 
 	case MSM_CAM_IOCTL_ERROR_CONFIG:
+#if defined (CONFIG_MACH_ANCORA)
+	rc = s5k4ecgx_sensor_esd_detected();
+	rc = sr030pc30_sensor_esd_detected(); //ESD
+#elif defined (CONFIG_MACH_ANCORA_TMO)
+#if defined( CONFIG_SENSOR_S5K5CCAF) || defined (CONFIG_SENSOR_SR030PC30_T679)
+		//if(cfg_data.device_id == 0){
+		pr_info("s5k5ccaf_sensor_esd_detected is executed at msm_camera.c **\n");
+		rc = s5k5ccaf_sensor_esd_detected(); //ESD
+		rc = sr030pc30_sensor_esd_detected(); //ESD
+		//}
+#else
 		rc = msm_error_config(pmsm->sync, argp);
+#endif
+#endif
+
 		break;
 
 	case MSM_CAM_IOCTL_ABORT_CAPTURE: {
@@ -2419,10 +2434,30 @@ static long msm_ioctl_control(struct file *filep, unsigned int cmd,
 		else
 	           rc = s5ka3dfx_sensor_ext_config(argp);
 #elif defined (CONFIG_MACH_ANCORA)
+#ifdef CONFIG_SENSOR_S5K5CCAF
+		if(cfg_data.device_id == 0)
+               rc = s5k5ccaf_sensor_ext_config(argp);
+#else
+		if(cfg_data.device_id == 0)
+               rc = s5k4ecgx_sensor_ext_config(argp);
+#endif
+		else
+	        rc = sr030pc30_sensor_ext_config(argp);
+#elif defined (CONFIG_MACH_ANCORA_TMO)
+#ifdef CONFIG_SENSOR_S5K5CCAF
+		if(cfg_data.device_id == 0)
+               rc = s5k5ccaf_sensor_ext_config(argp);
+#else
+		if(cfg_data.device_id == 0)
+               rc = s5k4ecgx_sensor_ext_config(argp);
+#endif
+		else
+	        rc = sr030pc30_sensor_ext_config(argp);
+#elif defined (CONFIG_MACH_APACHE)
 		if(cfg_data.device_id == 0)
                rc = s5k4ecgx_sensor_ext_config(argp);
 		else
-	        rc = sr030pc30_sensor_ext_config(argp);
+	        rc = sr130pc10_sensor_ext_config(argp);//pault
 #elif defined (CONFIG_MACH_GODART)
 		if(cfg_data.device_id == 0)
                rc = s5k4ecgx_sensor_ext_config(argp);
@@ -2520,6 +2555,7 @@ static int __msm_release(struct msm_sync *sync)
 			kfree(region);
 		}
 		msm_queue_drain(&sync->pict_q, list_pict);
+		msm_queue_drain(&sync->event_q, list_config);
 
 		wake_unlock(&sync->wake_lock);
 		sync->apps_id = NULL;
@@ -3018,6 +3054,7 @@ static int __msm_open(struct msm_sync *sync, const char *const apps_id,
 			if (rc < 0) {
 				pr_err("%s: sensor init failed: %d\n",
 					__func__, rc);
+				msm_camio_sensor_clk_off(sync->pdev);
 				goto msm_open_done;
 			}
 			rc = sync->vfefn.vfe_init(&msm_vfe_s,
@@ -3025,6 +3062,8 @@ static int __msm_open(struct msm_sync *sync, const char *const apps_id,
 			if (rc < 0) {
 				pr_err("%s: vfe_init failed at %d\n",
 					__func__, rc);
+				sync->sctrl.s_release();
+				msm_camio_sensor_clk_off(sync->pdev);
 				goto msm_open_done;
 			}
 		} else {

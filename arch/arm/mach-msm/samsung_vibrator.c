@@ -44,6 +44,8 @@ static int msm_vibrator_exit(struct platform_device *pdev);
 /* Variable for setting PWM in Force Out Set */
 VibeInt32 g_nForce_32 = 0;
 
+extern int board_hw_revision;
+
 /*
  * This function is used to set and re-set the GP_CLK M and N counters
  * to output the desired target frequency.
@@ -73,7 +75,7 @@ static int msm_vibrator_suspend(struct platform_device *pdev, pm_message_t state
 		is_vibe_on = 0;
 	}
 //	msm_vibrator_power(VIBRATION_OFF);
-	printk("[VIB] susepend\n");
+	printk("[VIB] suspend\n");
 	return VIBE_S_SUCCESS;
 }
 
@@ -81,7 +83,7 @@ static int msm_vibrator_resume(struct platform_device *pdev)
 {
 
 //	msm_vibrator_power(VIBRATION_ON);
-	printk("[VIB] resume\n");
+//	printk("[VIB] resume\n");
 	return VIBE_S_SUCCESS;
 }
 
@@ -154,20 +156,32 @@ static int vibe_set_pwm_freq(int nForce)
 
 static void set_pmic_vibrator(int on)
 {
-#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	int rc;
 #endif
 
-	printk(KERN_INFO,"[VIB] %s, input : %s\n",__func__,on ? "ON":"OFF");
+	//printk(KERN_INFO "[VIB] %s, input : %s\n",__func__,on ? "ON":"OFF");
 	if (on) {
 #ifdef CONFIG_MACH_ARIESVE
 		clk_enable(android_vib_clk);
 		gpio_set_value(VIB_ON,VIBRATION_ON);
-#elif defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#elif defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_APACHE)
 		rc = vreg_enable(vreg_vib);
 		if (rc) {
 			pr_err("%s: vreg_enable failed \n", __func__);
 		}
+#elif defined(CONFIG_MACH_ANCORA_TMO)
+        if(board_hw_revision == 1)
+        {
+         gpio_set_value(VIB_ON,VIBRATION_ON);
+        }
+        else if (board_hw_revision>= 2 )
+        {
+            rc = vreg_enable(vreg_vib);
+	    	if (rc) {
+			pr_err("%s: vreg_enable failed \n", __func__);
+	    	}
+        }
 #endif
 
 		is_vibe_on = 1;
@@ -176,11 +190,23 @@ static void set_pmic_vibrator(int on)
 #ifdef CONFIG_MACH_ARIESVE
 			gpio_set_value(VIB_ON, VIBRATION_OFF);
 			clk_disable(android_vib_clk);
-#elif defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#elif defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_APACHE)
 			rc = vreg_disable(vreg_vib);
 			if (rc) {
 				pr_err("%s: vreg_disable failed \n", __func__);
 			}
+#elif defined(CONFIG_MACH_ANCORA_TMO)
+            if(board_hw_revision == 1)
+            {
+          gpio_set_value(VIB_ON, VIBRATION_OFF);
+            }
+            else if ( board_hw_revision>= 2 )
+            {
+                    rc = vreg_disable(vreg_vib);
+        			if (rc) {
+        				pr_err("%s: vreg_disable failed \n", __func__);
+        			}
+            }
 #endif
 
 			is_vibe_on = 0;
@@ -233,14 +259,14 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 	hrtimer_cancel(&vibe_timer);
 
 	if (value == 0) {
-		printk(KERN_INFO,"[VIB] OFF\n");
+		//printk(KERN_INFO,"[VIB] OFF\n");
 		pmic_vibrator_off();
 	}
 	else {
 
 		if(value < 0)
 			value = ~value;
-		printk(KERN_INFO,"[VIB] ON, %d ms\n",value);
+		//printk(KERN_INFO,"[VIB] ON, %d ms\n",value);
 
 		value = (value > 15000 ? 15000 : value);
 
@@ -270,7 +296,7 @@ static enum hrtimer_restart vibrator_timer_func(struct hrtimer *timer)
 #else
 		unsigned int remain;
 
-		printk(KERN_INFO,"[VIB] %s\n",__func__);
+		//printk(KERN_INFO,"[VIB] %s\n",__func__);
 		if(hrtimer_active(&vibe_timer)) {
 				ktime_t r = hrtimer_get_remaining(&vibe_timer);
 				remain=r.tv.sec * 1000000 + r.tv.nsec;
@@ -278,11 +304,11 @@ static enum hrtimer_restart vibrator_timer_func(struct hrtimer *timer)
 				if(r.tv.sec < 0) {
 						remain = 0;
 				}
-				printk(KERN_INFO,"[VIB] hrtimer active, remain:%d\n",remain);
+				//printk(KERN_INFO "[VIB] hrtimer active, remain:%d\n",remain);
 				if(!remain)
 					pmic_vibrator_off();
 		} else {
-				printk(KERN_INFO,"[VIB] hrtimer not active\n");
+				//printk(KERN_INFO "[VIB] hrtimer not active\n");
 			pmic_vibrator_off();
 		}
 		return HRTIMER_NORESTART;
@@ -297,7 +323,7 @@ static struct timed_output_dev pmic_vibrator = {
 
 static int __devinit msm_vibrator_probe(struct platform_device *pdev)
 {
-#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	int rc;
 #endif
 	hrtimer_init(&vibe_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -316,17 +342,24 @@ static int __devinit msm_vibrator_probe(struct platform_device *pdev)
 
 	printk("[VIB] msm_vibrator_probe \n");
 
-#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_APACHE)
 	vreg_vib = vreg_get(NULL, "wlan2");
 	if (IS_ERR(vreg_vib)) {
 		pr_err("%s: wlan2 vreg get failed (%ld)",
 				__func__, PTR_ERR(vreg_vib));
 	}
 
+#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_APACHE)
+	rc = vreg_set_level(vreg_vib, 3300);
+	if (rc) {
+		pr_err("%s: vreg_set_level failed \n", __func__);
+	}
+#else
 	rc = vreg_set_level(vreg_vib, 3000);
 	if (rc) {
 		pr_err("%s: vreg_set_level failed \n", __func__);
 	}
+#endif
 
 /*
 	rc = vreg_enable(vreg_vib);
@@ -334,6 +367,22 @@ static int __devinit msm_vibrator_probe(struct platform_device *pdev)
 		pr_err("%s: vreg_enable failed \n", __func__);
 	}
 */
+#elif defined(CONFIG_MACH_ANCORA_TMO)
+
+    if(board_hw_revision>= 2)
+    {
+    	vreg_vib = vreg_get(NULL, "gp4");
+    	if (IS_ERR(vreg_vib)) {
+    		pr_err("%s: gp4 vreg get failed (%ld)",
+    				__func__, PTR_ERR(vreg_vib));
+    	}
+
+    	rc = vreg_set_level(vreg_vib, 3300);
+    	if (rc) {
+    		pr_err("%s: vreg_set_level failed \n", __func__);
+    	}
+    }
+
 #endif
 
 

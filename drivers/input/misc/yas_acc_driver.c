@@ -31,8 +31,12 @@
 #include "yas_acc_driver-bma222.c"       // Galaxy S+  (REV 0.0 bma023 REV 0.1 bma222)
 #elif defined (CONFIG_MACH_ANCORA)
 #include "yas_acc_driver-bma222.c"            // Ancora
+#elif defined (CONFIG_MACH_ANCORA_TMO)
+#include "yas_acc_driver-bma222.c"            // Ancora
 #elif defined (CONFIG_MACH_GODART)
 #include "yas_acc_driver-bma222.c"            // Godart
+#elif defined (CONFIG_MACH_APACHE)
+#include "yas_acc_driver-bma250.c"            // Apache
 #else
 #include "yas_acc_driver-bma222.c"
 #endif

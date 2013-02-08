@@ -17,11 +17,13 @@
 #include <linux/mm.h>
 #include <linux/mm_types.h>
 #include <linux/bootmem.h>
+#include <linux/memory_alloc.h>
 #include <linux/module.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
 #include <asm/mach/map.h>
 #include <asm/cacheflush.h>
+#include <mach/msm_memtypes.h>
 #include <linux/hardirq.h>
 #if defined(CONFIG_MSM_NPA_REMOTE)
 #include "npa_remote.h"
@@ -35,7 +37,7 @@ int arch_io_remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
 	unsigned long pfn_addr = pfn << PAGE_SHIFT;
 	if ((pfn_addr >= 0x88000000) && (pfn_addr < 0xD0000000)) {
 		prot = pgprot_device(prot);
-		printk("remapping device %lx\n", prot);
+		pr_debug("remapping device %lx\n", prot);
 	}
 	return remap_pfn_range(vma, addr, pfn, size, prot);
 }
@@ -150,6 +152,14 @@ void invalidate_caches(unsigned long vstart,
 
 	flush_axi_bus_buffer();
 }
+
+unsigned long allocate_contiguous_ebi_nomap(unsigned long size,
+	unsigned long align)
+{
+	return _allocate_contiguous_memory_nomap(size, MEMTYPE_EBI0,
+		align, __builtin_return_address(0));
+}
+EXPORT_SYMBOL(allocate_contiguous_ebi_nomap);
 
 void *alloc_bootmem_aligned(unsigned long size, unsigned long alignment)
 {

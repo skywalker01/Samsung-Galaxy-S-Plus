@@ -3,7 +3,7 @@
 #include <asm/atomic.h>
 #include <linux/err.h>
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 #define MSM_LIGHTSENSOR_ADC_READ
 #endif
 

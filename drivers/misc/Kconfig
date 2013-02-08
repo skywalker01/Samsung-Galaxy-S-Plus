@@ -379,6 +379,10 @@ config UID_STAT
 	bool "UID based statistics tracking exported to /proc/uid_stat"
 	default n
 
+config IFACE_STAT
+	bool "Persistent interface statistics tracking exported to /proc/iface_stat"
+	default n
+
 config VMWARE_BALLOON
 	tristate "VMware Balloon Driver"
 	depends on X86
@@ -534,6 +538,14 @@ config SAMSUNG_FM_SI4709
 	 This is SI4709 FM radio driver for Samsung devices.
 
 	 If unsure, say N.
+
+config PMIC8058_BATTALARM
+	tristate "Qualcomm PM8058 Battery Alarm Device driver"
+	depends on PMIC8058
+	help
+	  This option enables support for the battery alarm module on the
+	  Qualcomm PM8058 PMIC chip.  This support allows for configuration of
+	  the alarm module as well as interrupt handling.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

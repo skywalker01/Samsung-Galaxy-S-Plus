@@ -34,6 +34,12 @@
 #include <linux/irq.h>
 #include <linux/mfd/core.h>
 
+/* hyeokseon.yu */
+#ifdef CONFIG_CHARGER_SMB328A
+#define PM8058_GPIO(n)	((n) - 1)
+#endif
+
+
 #define PM8058_GPIOS		40
 #define PM8058_MPPS		12
 
@@ -88,6 +94,7 @@
 #define PM8058_ADC_IRQ(base)		((base) + PM8058_IRQ_BLOCK_BIT(9, 4))
 #define PM8058_TEMP_ALARM_IRQ(base)	((base) + PM8058_IRQ_BLOCK_BIT(6, 7))
 #define PM8058_OSCHALT_IRQ(base)	((base) + PM8058_IRQ_BLOCK_BIT(4, 6))
+#define PM8058_BATT_ALARM_IRQ(base)	((base) + PM8058_IRQ_BLOCK_BIT(5, 6))
 
 struct pm8058_chip;
 
@@ -161,6 +168,7 @@ struct pm8058_gpio {
 	int		out_strength;
 	int		function;
 	int		inv_int_pol;	/* invert interrupt polarity */
+	int		disable_pin;	/* disable pin and tri-state its pad */
 };
 
 /* chip revision */

@@ -16,13 +16,18 @@
 static struct yda165_i2c_data g_data;
 
 extern int charging_boot; //shim
-
-
+#ifdef CONFIG_MACH_ANCORA_TMO
+extern int board_hw_revision;
+#endif
 static struct i2c_client *pclient;
 static struct snd_set_ampgain g_ampgain[MODE_NUM_MAX];
 static struct snd_set_ampgain temp;
 static int set_mode = 0;
 static int cur_mode = 0;
+#ifdef CONFIG_ANCORA_AMP_HPATT
+static int amp_volume = 0;
+static bool earphone_multimedia_mode = false;
+#endif
 
 static ssize_t mode_show(struct device *dev,struct device_attribute *attr,char *buf)
 {
@@ -689,12 +694,12 @@ void D4Hp3_CheckArgument(D4HP3_SETTING_INFO *pstSettingInfo)
 	UINT8 bCheckArgument = 0;
 
 	/* IN */
-	if(pstSettingInfo->bLine1Gain > 10)
+	if(pstSettingInfo->bLine1Gain > 7)
 	{
 		pstSettingInfo->bLine1Gain = 2;
 		bCheckArgument++;
 	}
-	if(pstSettingInfo->bLine2Gain > 10)
+	if(pstSettingInfo->bLine2Gain > 7)
 	{
 		pstSettingInfo->bLine2Gain = 2;
 		bCheckArgument++;
@@ -730,7 +735,7 @@ void D4Hp3_CheckArgument(D4HP3_SETTING_INFO *pstSettingInfo)
 		pstSettingInfo->bHpAtt = 0;
 		bCheckArgument++;
 	}
-	if(pstSettingInfo->bHpGainUp > 7)
+	if(pstSettingInfo->bHpGainUp > 3)
 	{
 		pstSettingInfo->bHpGainUp = 0;
 		bCheckArgument++;
@@ -767,7 +772,7 @@ void D4Hp3_CheckArgument(D4HP3_SETTING_INFO *pstSettingInfo)
 		pstSettingInfo->bSpAtt = 0;
 		bCheckArgument++;
 	}
-	if(pstSettingInfo->bSpGainUp > 7)
+	if(pstSettingInfo->bSpGainUp > 3)
 	{
 		pstSettingInfo->bSpGainUp = 0;
 		bCheckArgument++;
@@ -808,7 +813,7 @@ void D4Hp3_CheckArgument(D4HP3_SETTING_INFO *pstSettingInfo)
 		pstSettingInfo->bSpNcpl_NonClipRatio = 0;
 		bCheckArgument++;
 	}
-	if(pstSettingInfo->bSpNcpl_PowerLimit > 20)
+	if(pstSettingInfo->bSpNcpl_PowerLimit > 15)
 	{
 		pstSettingInfo->bSpNcpl_PowerLimit =0;
 		bCheckArgument++;
@@ -1050,6 +1055,10 @@ void yda165_speaker_onoff(int onoff) /* speaker path amp onoff */
 	unsigned char buf;
 #endif
 
+#ifdef CONFIG_ANCORA_AMP_HPATT
+	earphone_multimedia_mode = false;
+#endif
+
 	if (onoff)
 	{
 		pr_info(MODULE_NAME ":speaker on\n");
@@ -1064,7 +1073,14 @@ void yda165_speaker_onoff(int onoff) /* speaker path amp onoff */
 
 		/* HP */
 		stInfo.bHpCpMode = 0;			/* HP charge pump mode setting, 3stage mode(0) / 2stage mode(1) */
-		stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		if(board_hw_revision<2)
+			stInfo.bHpAvddLev = 1;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#endif
 		stInfo.bHpEco = 0;				/* HP eco mode, normal(0) / eco mode(1) */
 		stInfo.bHpAtt = g_ampgain[cur_mode].hp_att;				/* HP attenuator */
 		stInfo.bHpGainUp = g_ampgain[cur_mode].hp_gainup;			/* HP gain up */
@@ -1083,10 +1099,25 @@ void yda165_speaker_onoff(int onoff) /* speaker path amp onoff */
 		stInfo.bSpMixer_Line2 = 0;		/* SP mixer LINE2 setting */
 		stInfo.bSpNg_DetectionLv = 0;	/* SP Noise Gate : detection level */
 		stInfo.bSpNg_AttackTime = 1;		/* SP Noise Gate : attack time */
+
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_NonClipRatio = 3;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		stInfo.bSpNcpl_PowerLimit = 8;	/* SP Non-Clip power limiter : Power Limit */
+		#elif defined(CONFIG_MACH_ARIESVE)
 		stInfo.bSpNcpl_NonClipRatio = 1;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
 		stInfo.bSpNcpl_PowerLimit = 1;	/* SP Non-Clip power limiter : Power Limit */
+		#else
+		stInfo.bSpNcpl_NonClipRatio = 0;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		stInfo.bSpNcpl_PowerLimit = 6;	/* SP Non-Clip power limiter : Power Limit */
+		#endif
+
 		stInfo.bSpNcpl_AttackTime = 2;	/* SP Non-Clip power limiter : attack Time */
+
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_ReleaseTime = 0;	/* SP Non-Clip power limiter : release Time */
+		#else
 		stInfo.bSpNcpl_ReleaseTime = 1;	/* SP Non-Clip power limiter : release Time */
+		#endif
 
 		D4Hp3_PowerOn(&stInfo);
 
@@ -1122,6 +1153,10 @@ void yda165_speaker_call_onoff(int onoff) /* speaker_call path amp onoff */
 	unsigned char buf;
 #endif
 
+#ifdef CONFIG_ANCORA_AMP_HPATT
+	earphone_multimedia_mode = false;
+#endif
+
 	if (onoff)
 	{
 		pr_info(MODULE_NAME ":speaker_call on\n");
@@ -1136,7 +1171,14 @@ void yda165_speaker_call_onoff(int onoff) /* speaker_call path amp onoff */
 
 		/* HP */
 		stInfo.bHpCpMode = 0;			/* HP charge pump mode setting, 3stage mode(0) / 2stage mode(1) */
-		stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		if(board_hw_revision<2)
+			stInfo.bHpAvddLev = 1;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#endif
 		stInfo.bHpEco = 0;				/* HP eco mode, normal(0) / eco mode(1) */
 		stInfo.bHpAtt = g_ampgain[cur_mode].hp_att;				/* HP attenuator */
 		stInfo.bHpGainUp = g_ampgain[cur_mode].hp_gainup;			/* HP gain up */
@@ -1155,10 +1197,25 @@ void yda165_speaker_call_onoff(int onoff) /* speaker_call path amp onoff */
 		stInfo.bSpMixer_Line2 = 0;		/* SP mixer LINE2 setting */
 		stInfo.bSpNg_DetectionLv = 0;	/* SP Noise Gate : detection level */
 		stInfo.bSpNg_AttackTime = 1;		/* SP Noise Gate : attack time */
+
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_NonClipRatio = 0;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		stInfo.bSpNcpl_PowerLimit = 8;	/* SP Non-Clip power limiter : Power Limit */
+		#elif defined(CONFIG_MACH_ARIESVE)
 		stInfo.bSpNcpl_NonClipRatio = 1;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
 		stInfo.bSpNcpl_PowerLimit = 4;	/* SP Non-Clip power limiter : Power Limit */
+		#else
+		stInfo.bSpNcpl_NonClipRatio = 0;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		stInfo.bSpNcpl_PowerLimit = 6;	/* SP Non-Clip power limiter : Power Limit */
+		#endif
+
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_AttackTime = 1;	/* SP Non-Clip power limiter : attack Time */
+		stInfo.bSpNcpl_ReleaseTime = 1;	/* SP Non-Clip power limiter : release Time */
+		#else
 		stInfo.bSpNcpl_AttackTime = 2;	/* SP Non-Clip power limiter : attack Time */
 		stInfo.bSpNcpl_ReleaseTime = 1;	/* SP Non-Clip power limiter : release Time */
+		#endif
 
 		D4Hp3_PowerOn(&stInfo);
 
@@ -1187,9 +1244,18 @@ void yda165_speaker_call_onoff(int onoff) /* speaker_call path amp onoff */
 		D4Hp3_PowerOff();
 	}
 }
+
+#ifdef CONFIG_ANCORA_AMP_HPATT
+unsigned char set_HP_att();
+#endif
+
 void yda165_headset_onoff(int onoff) /* headset path amp onoff */
 {
 	D4HP3_SETTING_INFO stInfo;
+
+#ifdef CONFIG_ANCORA_AMP_HPATT
+	earphone_multimedia_mode = true;
+#endif
 
 	if (onoff)
 	{
@@ -1205,9 +1271,21 @@ void yda165_headset_onoff(int onoff) /* headset path amp onoff */
 
 		/* HP */
 		stInfo.bHpCpMode = 0;			/* HP charge pump mode setting, 3stage mode(0) / 2stage mode(1) */
-		stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		if(board_hw_revision<2)
+			stInfo.bHpAvddLev = 1;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#endif
 		stInfo.bHpEco = 0;				/* HP eco mode, normal(0) / eco mode(1) */
+
+#ifdef CONFIG_ANCORA_AMP_HPATT
+		stInfo.bHpAtt = set_HP_att();
+#else
 		stInfo.bHpAtt = g_ampgain[cur_mode].hp_att;				/* HP attenuator */
+#endif
 		stInfo.bHpGainUp = g_ampgain[cur_mode].hp_gainup;			/* HP gain up */
 		stInfo.bHpSvol = 0;				/* HP soft volume setting, on(0) / off(1) */
 		stInfo.bHpZcs = 0;;				/* HP zero cross mute setting, on(0) / off(1) */
@@ -1224,10 +1302,20 @@ void yda165_headset_onoff(int onoff) /* headset path amp onoff */
 		stInfo.bSpMixer_Line2 = 0;		/* SP mixer LINE2 setting */
 		stInfo.bSpNg_DetectionLv = 0;	/* SP Noise Gate : detection level */
 		stInfo.bSpNg_AttackTime = 1;		/* SP Noise Gate : attack time */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_PowerLimit = 8;	/* SP Non-Clip power limiter : Power Limit */
+		stInfo.bSpNcpl_NonClipRatio = 3;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		#else
 		stInfo.bSpNcpl_NonClipRatio = 1;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
 		stInfo.bSpNcpl_PowerLimit = 1;	/* SP Non-Clip power limiter : Power Limit */
+		#endif
 		stInfo.bSpNcpl_AttackTime = 2;	/* SP Non-Clip power limiter : attack Time */
+
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_ReleaseTime = 0;	/* SP Non-Clip power limiter : release Time */
+		#else
 		stInfo.bSpNcpl_ReleaseTime = 1;	/* SP Non-Clip power limiter : release Time */
+		#endif
 
 		D4Hp3_PowerOn(&stInfo);
 	}
@@ -1240,6 +1328,10 @@ void yda165_headset_onoff(int onoff) /* headset path amp onoff */
 void yda165_headset_call_onoff(int onoff) /* headset path amp onoff */
 {
 	D4HP3_SETTING_INFO stInfo;
+
+#ifdef CONFIG_ANCORA_AMP_HPATT
+	earphone_multimedia_mode = false;
+#endif
 
 	if (onoff)
 	{
@@ -1255,7 +1347,14 @@ void yda165_headset_call_onoff(int onoff) /* headset path amp onoff */
 
 		/* HP */
 		stInfo.bHpCpMode = 0;			/* HP charge pump mode setting, 3stage mode(0) / 2stage mode(1) */
-		stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		if(board_hw_revision<2)
+			stInfo.bHpAvddLev = 1;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#endif
 		stInfo.bHpEco = 0;				/* HP eco mode, normal(0) / eco mode(1) */
 		stInfo.bHpAtt = g_ampgain[cur_mode].hp_att;				/* HP attenuator */
 		stInfo.bHpGainUp = g_ampgain[cur_mode].hp_gainup;			/* HP gain up */
@@ -1274,10 +1373,19 @@ void yda165_headset_call_onoff(int onoff) /* headset path amp onoff */
 		stInfo.bSpMixer_Line2 = 0;		/* SP mixer LINE2 setting */
 		stInfo.bSpNg_DetectionLv = 0;	/* SP Noise Gate : detection level */
 		stInfo.bSpNg_AttackTime = 1;		/* SP Noise Gate : attack time */
-		stInfo.bSpNcpl_NonClipRatio = 1;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_PowerLimit = 8;	/* SP Non-Clip power limiter : Power Limit */
+		stInfo.bSpNcpl_NonClipRatio = 0;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		#else
 		stInfo.bSpNcpl_PowerLimit = 1;	/* SP Non-Clip power limiter : Power Limit */
+		stInfo.bSpNcpl_NonClipRatio = 1;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		#endif
 		stInfo.bSpNcpl_AttackTime = 2;	/* SP Non-Clip power limiter : attack Time */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_ReleaseTime = 0;	/* SP Non-Clip power limiter : release Time */
+		#else
 		stInfo.bSpNcpl_ReleaseTime = 1;	/* SP Non-Clip power limiter : release Time */
+		#endif
 
 		D4Hp3_PowerOn(&stInfo);
 	}
@@ -1290,6 +1398,10 @@ void yda165_headset_call_onoff(int onoff) /* headset path amp onoff */
 void yda165_speaker_headset_onoff(int onoff) /* speaker+headset path amp onoff */
 {
 	D4HP3_SETTING_INFO stInfo;
+
+#ifdef CONFIG_ANCORA_AMP_HPATT
+	earphone_multimedia_mode = false;
+#endif
 
 	if (onoff)
 	{
@@ -1305,7 +1417,14 @@ void yda165_speaker_headset_onoff(int onoff) /* speaker+headset path amp onoff *
 
 		/* HP */
 		stInfo.bHpCpMode = 0;			/* HP charge pump mode setting, 3stage mode(0) / 2stage mode(1) */
-		stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		if(board_hw_revision<2)
+			stInfo.bHpAvddLev = 1;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#endif
 		stInfo.bHpEco = 0;				/* HP eco mode, normal(0) / eco mode(1) */
 		stInfo.bHpAtt = g_ampgain[cur_mode].hp_att;				/* HP attenuator */
 		stInfo.bHpGainUp = g_ampgain[cur_mode].hp_gainup;			/* HP gain up */
@@ -1324,10 +1443,24 @@ void yda165_speaker_headset_onoff(int onoff) /* speaker+headset path amp onoff *
 		stInfo.bSpMixer_Line2 = 0;		/* SP mixer LINE2 setting */
 		stInfo.bSpNg_DetectionLv = 0;	/* SP Noise Gate : detection level */
 		stInfo.bSpNg_AttackTime = 1;		/* SP Noise Gate : attack time */
+
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_NonClipRatio = 3;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		stInfo.bSpNcpl_PowerLimit = 8;	/* SP Non-Clip power limiter : Power Limit */
+		#elif defined(CONFIG_MACH_ARIESVE)
 		stInfo.bSpNcpl_NonClipRatio = 1;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
 		stInfo.bSpNcpl_PowerLimit = 1;	/* SP Non-Clip power limiter : Power Limit */
+		#else
+		stInfo.bSpNcpl_NonClipRatio = 0;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		stInfo.bSpNcpl_PowerLimit = 6;	/* SP Non-Clip power limiter : Power Limit */
+		#endif
 		stInfo.bSpNcpl_AttackTime = 2;	/* SP Non-Clip power limiter : attack Time */
+
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_ReleaseTime = 0;	/* SP Non-Clip power limiter : release Time */
+		#else
 		stInfo.bSpNcpl_ReleaseTime = 1;	/* SP Non-Clip power limiter : release Time */
+		#endif
 
 		D4Hp3_PowerOn(&stInfo);
 	}
@@ -1340,6 +1473,10 @@ void yda165_speaker_headset_onoff(int onoff) /* speaker+headset path amp onoff *
 void yda165_tty_onoff(int onoff) /* tty path amp onoff */
 {
 	D4HP3_SETTING_INFO stInfo;
+
+#ifdef CONFIG_ANCORA_AMP_HPATT
+	earphone_multimedia_mode = false;
+#endif
 
 	if (onoff)
 	{
@@ -1354,7 +1491,14 @@ void yda165_tty_onoff(int onoff) /* tty path amp onoff */
 
 		/* HP */
 		stInfo.bHpCpMode = 0;			/* HP charge pump mode setting, 3stage mode(0) / 2stage mode(1) */
-		stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		if(board_hw_revision<2)
+			stInfo.bHpAvddLev = 1;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#else
+			stInfo.bHpAvddLev = 0;			/* HP charge pump AVDD level, 1.65V<=AVDD<2.40V(0) / 2.40V<=AVDD<=2.86V(1) */
+		#endif
 		stInfo.bHpEco = 0;				/* HP eco mode, normal(0) / eco mode(1) */
 		stInfo.bHpAtt = 31;				/* HP attenuator */
 		stInfo.bHpGainUp = 0;			/* HP gain up */
@@ -1373,10 +1517,19 @@ void yda165_tty_onoff(int onoff) /* tty path amp onoff */
 		stInfo.bSpMixer_Line2 = 0;		/* SP mixer LINE2 setting */
 		stInfo.bSpNg_DetectionLv = 0;	/* SP Noise Gate : detection level */
 		stInfo.bSpNg_AttackTime = 1;		/* SP Noise Gate : attack time */
-		stInfo.bSpNcpl_NonClipRatio = 1;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_PowerLimit = 7;	/* SP Non-Clip power limiter : Power Limit */
+		stInfo.bSpNcpl_NonClipRatio = 0;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		#else
 		stInfo.bSpNcpl_PowerLimit = 1;	/* SP Non-Clip power limiter : Power Limit */
+		stInfo.bSpNcpl_NonClipRatio = 1;	/* SP Non-Clip power limiter : Non-Clip distortion ratio */
+		#endif
 		stInfo.bSpNcpl_AttackTime = 2;	/* SP Non-Clip power limiter : attack Time */
+		#ifdef CONFIG_MACH_ANCORA_TMO
+		stInfo.bSpNcpl_ReleaseTime = 0;	/* SP Non-Clip power limiter : release Time */
+		#else
 		stInfo.bSpNcpl_ReleaseTime = 1;	/* SP Non-Clip power limiter : release Time */
+		#endif
 
 		D4Hp3_PowerOn(&stInfo);
 	}
@@ -1386,6 +1539,48 @@ void yda165_tty_onoff(int onoff) /* tty path amp onoff */
 		D4Hp3_PowerOff();
 	}
 }
+
+#ifdef CONFIG_ANCORA_AMP_HPATT
+void update_HP_att()
+{
+	UINT8 pbReadPrm  = 0;
+
+	if(!earphone_multimedia_mode)		return;
+
+	D4Hp3_ReadRegisterByte(0x86, &pbReadPrm);
+	pbReadPrm&=0xC0;
+
+	if(amp_volume == 15)		pbReadPrm|=31;
+	else if(amp_volume == 14)	pbReadPrm|=29;
+	else if(amp_volume == 13)	pbReadPrm|=27;
+	else if(amp_volume == 12)	pbReadPrm|=25;
+	else if(amp_volume == 11)	pbReadPrm|=23;
+	else if(amp_volume == 10)	pbReadPrm|=21;
+	else if(amp_volume == 9)		pbReadPrm|=19;
+	else							pbReadPrm|=17;
+
+	D4Hp3_WriteRegisterByte(0x86, pbReadPrm);
+
+	D4Hp3_ReadRegisterByte(0x86, &pbReadPrm);
+	pbReadPrm&=0x3F;
+
+	printk("[IJ] Volume = %d, HP_att = %d\n", amp_volume, pbReadPrm);
+
+	return;
+}
+
+unsigned char set_HP_att()
+{
+	if(amp_volume == 15)		return 31;
+	else if(amp_volume == 14)	return 29;
+	else if(amp_volume == 13)	return 27;
+	else if(amp_volume == 12)	return 25;
+	else if(amp_volume == 11)	return 23;
+	else if(amp_volume == 10)	return 21;
+	else if(amp_volume == 9)		return 19;
+	else							return 17;
+}
+#endif
 
 static int amp_open(struct inode *inode, struct file *file)
 {
@@ -1400,6 +1595,29 @@ static int amp_release(struct inode *inode, struct file *file)
 static int amp_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	   unsigned long arg)
 {
+#ifdef CONFIG_ANCORA_AMP_HPATT
+	int volume_ioctl = 0;
+
+	switch(cmd)
+	{
+		case SND_SET_AMPGAIN :
+			if(copy_from_user(&volume_ioctl, (void __user *) arg, sizeof(volume_ioctl)))
+			{
+				pr_err(MODULE_NAME ": %s fail\n", __func__);
+				break;
+			}
+
+			if(volume_ioctl >=0 && volume_ioctl < 16)
+			{
+				amp_volume = volume_ioctl;
+				printk("[IJ] %s get volume = %d, status = %d\n", __func__, volume_ioctl, earphone_multimedia_mode);
+				update_HP_att();
+			}
+			break;
+		default :
+			break;
+	}
+#endif
 	/* int mode;
 	 * switch (cmd)
 	 * {

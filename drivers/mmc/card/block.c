@@ -31,6 +31,7 @@
 #include <linux/mutex.h>
 #include <linux/scatterlist.h>
 #include <linux/string_helpers.h>
+#include <linux/delay.h>
 
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
@@ -49,6 +50,12 @@ MODULE_ALIAS("mmc:block");
  */
 #define MMC_SHIFT	5
 #define MMC_NUM_MINORS	(256 >> MMC_SHIFT)
+
+// -------------------------------------------
+// For H/W ESD
+// -------------------------------------------
+#define ANCORA_EXT_SD_ESD_CHECK_ROUTINE			1
+// -------------------------------------------
 
 static DECLARE_BITMAP(dev_use, MMC_NUM_MINORS);
 
@@ -221,6 +228,15 @@ static u32 mmc_sd_num_wr_blocks(struct mmc_card *card)
 	return result;
 }
 
+#ifdef ANCORA_EXT_SD_ESD_CHECK_ROUTINE
+/*	----------------------------------------------------------------
+	ANCORA ESD Defence code
+	----------------------------------------------------------------	*/
+extern int msmsdcc_runtime_resume_ESD(struct mmc_card *card);
+extern int msmsdcc_runtime_suspend_ESD(struct mmc_card *card);
+#endif
+
+
 static u32 get_card_status(struct mmc_card *card, struct request *req)
 {
 	struct mmc_command cmd;
@@ -233,8 +249,25 @@ static u32 get_card_status(struct mmc_card *card, struct request *req)
 	cmd.flags = MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC;
 	err = mmc_wait_for_cmd(card->host, &cmd, 0);
 	if (err)
-		printk(KERN_ERR "%s: error %d sending status comand",
-		       req->rq_disk->disk_name, err);
+	{
+		printk(KERN_ERR "%s: error %d sending status comand", req->rq_disk->disk_name, err);
+
+#ifdef ANCORA_EXT_SD_ESD_CHECK_ROUTINE
+		if( (err == 110) || (err == -110) )
+		{
+		/*	--------------------------------------------------------------------------------------------------
+			ANCORA ESD Defence Code....
+			--------------------------------------------------------------------------------------------------	*/
+			msmsdcc_runtime_suspend_ESD(card);
+			mdelay(2);
+			msmsdcc_runtime_resume_ESD(card);
+
+			err = mmc_wait_for_cmd(card->host, &cmd, 0);
+			if(err) printk(KERN_ERR "%s: error %d sending status comand", req->rq_disk->disk_name, err);
+		}
+#endif
+
+	}
 	return cmd.resp[0];
 }
 

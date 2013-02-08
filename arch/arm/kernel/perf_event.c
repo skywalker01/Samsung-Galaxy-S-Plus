@@ -547,7 +547,7 @@ void
 hw_perf_enable(void)
 {
 	/* Enable all of the perf events on hardware. */
-	int idx;
+	int idx, enabled = 0;
 	struct cpu_hw_events *cpuc = &__get_cpu_var(cpu_hw_events);
 
 	if (!armpmu)
@@ -560,9 +560,11 @@ hw_perf_enable(void)
 			continue;
 
 		armpmu->enable(&event->hw, idx);
+		enabled = 1;
 	}
 
-	armpmu->start();
+	if (enabled)
+		armpmu->start();
 }
 
 void
@@ -1926,7 +1928,7 @@ static inline int armv7_pmnc_has_overflowed(unsigned long pmnc)
 static inline int armv7_pmnc_counter_has_overflowed(unsigned long pmnc,
 					enum armv7_counters counter)
 {
-	int ret;
+	int ret = 0;
 
 	if (counter == ARMV7_CYCLE_COUNTER)
 		ret = pmnc & ARMV7_FLAG_C;

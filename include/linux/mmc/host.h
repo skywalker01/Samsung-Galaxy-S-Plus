@@ -126,6 +126,9 @@ struct mmc_host {
 	u32			ocr_avail;
 	struct notifier_block	pm_notify;
 
+	// add for detect damaged sd card and vreg struct.
+	unsigned int damaged_sd_card;
+
 #define MMC_VDD_165_195		0x00000080	/* VDD voltage 1.65 - 1.95 */
 #define MMC_VDD_20_21		0x00000100	/* VDD voltage 2.0 ~ 2.1 */
 #define MMC_VDD_21_22		0x00000200	/* VDD voltage 2.1 ~ 2.2 */
@@ -240,6 +243,7 @@ struct mmc_host {
 		ktime_t wtime_drv;	   /* Wr time  MMC Host  */
 		ktime_t start;
 	} perf;
+	bool perf_enable;
 #endif
 	unsigned long		private[0] ____cacheline_aligned;
 };
@@ -318,6 +322,14 @@ static inline void mmc_set_disable_delay(struct mmc_host *host,
 					 unsigned int disable_delay)
 {
 	host->disable_delay = disable_delay;
+}
+
+/* Module parameter */
+extern int mmc_assume_removable;
+
+static inline int mmc_card_is_removable(struct mmc_host *host)
+{
+	return !(host->caps & MMC_CAP_NONREMOVABLE) && mmc_assume_removable;
 }
 
 #endif

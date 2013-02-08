@@ -98,14 +98,14 @@
 #define KEYF_FIX_LAST_ROW		0x01
 
 // for Galaxy S+
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 #define GPIO_HOMEKEY 51
 #define MSM_GPIO_KEY_IRQ				MSM_GPIO_TO_INT(GPIO_HOMEKEY)
 #endif
 ///////////////////// temp
-#ifndef CONFIG_KERNEL_SEC_MMICHECK
-#define CONFIG_KERNEL_SEC_MMICHECK
-#endif
+//#ifndef CONFIG_KERNEL_SEC_MMICHECK
+//#define CONFIG_KERNEL_SEC_MMICHECK
+//#endif
 
 extern int on_call_flag;
 extern int on_fmradio_flag;
@@ -125,6 +125,7 @@ struct pmic8058_kp {
 
 	u32	flags;
 	struct pm8058_chip	*pm_chip;
+	struct timer_list timer;
 
 	/* protect read/write */
 	struct mutex		mutex;
@@ -258,7 +259,7 @@ static int pmic8058_chk_sync_read(struct pmic8058_kp *kp)
 	return rc;
 }
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 int key_pressed;
 extern struct class *sec_class;
 /* sys fs */
@@ -362,9 +363,9 @@ static int __pmic8058_kp_scan_matrix(struct pmic8058_kp *kp, u16 *new_state,
 					!(new_state[row] & (1 << col)));
 
 			input_sync(kp->input);
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 			key_pressed=!(new_state[row] & (1 << col));
-#ifdef KERNEL_DEBUG_SEC
+#ifdef KEY_LOG_TEST
 			printk("[key] code %d, %d \n", kp->keycodes[code], key_pressed);
 #endif
 #endif
@@ -530,7 +531,7 @@ static irqreturn_t pmic8058_kp_stuck_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 static int gpio_key_scan(struct pmic8058_kp *kp)
 {
 	int state;//, code;
@@ -544,7 +545,7 @@ static int gpio_key_scan(struct pmic8058_kp *kp)
 	input_report_key(kp->input, KEY_HOME, state);
 
 	key_pressed=state;
-#ifdef KERNEL_DEBUG_SEC
+#ifdef KEY_LOG_TEST
 	printk("[key] code %d, %d \n", KEY_HOME, key_pressed);
 #endif
 
@@ -553,7 +554,12 @@ static int gpio_key_scan(struct pmic8058_kp *kp)
 	return 0;
 }
 #endif
+static void gpio_key_timer(unsigned long _data)
+{
+	struct pmic8058_kp *kp = (struct pmic8058_kp *)_data;
 
+	gpio_key_scan(kp);
+}
 /*
  * NOTE: Any row multiple interrupt issue - PMIC4 Rev A0
  *
@@ -570,14 +576,6 @@ static irqreturn_t pmic8058_kp_irq(int irq, void *data)
 	u8 ctrl_val, events;
 	int rc;
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
-	if ( irq == MSM_GPIO_KEY_IRQ ){
-		gpio_key_scan(kp);
-
-		//return IRQ_HANDLED;
-	}
-#endif
-
 	if (pm8058_rev(kp->pm_chip) == PM_8058_REV_1p0)
 		mdelay(1);
 
@@ -591,6 +589,20 @@ static irqreturn_t pmic8058_kp_irq(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
+
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
+static irqreturn_t pmic8058_gpiokey_irq(int irq, void *data)
+{
+	struct pmic8058_kp *kp = data;
+
+	if (kp->pdata->debounce_ms_gpiokey)
+		mod_timer(&kp->timer, jiffies + msecs_to_jiffies(kp->pdata->debounce_ms_gpiokey));
+	else
+		gpio_key_scan(kp);
+
+	return IRQ_HANDLED;
+}
+#endif
 /*
  * NOTE: Last row multi-interrupt issue
  *
@@ -829,6 +841,8 @@ static int __devinit pmic8058_kp_probe(struct platform_device *pdev)
 		goto err_alloc_device;
 	}
 
+	setup_timer(&kp->timer, gpio_key_timer, (unsigned long)kp);
+
 	/* Enable runtime PM ops, start in ACTIVE mode */
 	rc = pm_runtime_set_active(&pdev->dev);
 	if (rc < 0)
@@ -881,6 +895,7 @@ static int __devinit pmic8058_kp_probe(struct platform_device *pdev)
 	input_set_capability(kp->input, EV_MSC, MSC_SCAN);
 	input_set_drvdata(kp->input, kp);
 	input_set_capability(kp->input,EV_KEY, KEY_END); // for Galaxy S+
+	input_set_capability(kp->input,EV_KEY, KEY_HOME); // for ancora
 
 #if defined(CONFIG_KERNEL_SEC_MMICHECK)
 	for(i = 0 ; i < ARRAY_SIZE(mmi_keycode) ; i++)
@@ -932,9 +947,9 @@ static int __devinit pmic8058_kp_probe(struct platform_device *pdev)
 		goto err_req_stuck_irq;
 	}
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	rc = request_threaded_irq( MSM_GPIO_KEY_IRQ ,
-			NULL, pmic8058_kp_irq, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING	, "keypad_gpio", kp);
+			NULL, pmic8058_gpiokey_irq, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING	, "keypad_gpio", kp);
 
 	if (rc < 0) {
 		dev_err(&pdev->dev, "failed to request gpio key irq\n");
@@ -957,7 +972,7 @@ static int __devinit pmic8058_kp_probe(struct platform_device *pdev)
 	if (rc < 0)
 		goto err_create_file;
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	/* sys fs */
 	key_class = class_create(THIS_MODULE, "key");
 	if (IS_ERR(key_class))

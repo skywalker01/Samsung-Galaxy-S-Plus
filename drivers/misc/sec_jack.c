@@ -35,7 +35,7 @@
 
 #define MODULE_NAME "sec_jack:"
 #define MAX_ZONE_LIMIT		10
-#define SEND_KEY_CHECK_TIME_MS	60		/* 60ms */
+#define SEND_KEY_CHECK_TIME_MS	120		/* 120ms */
 #define DET_CHECK_TIME_MS	100			/* 100ms */
 #define WAKE_LOCK_TIME		(HZ * 5)	/* 5 sec */
 #define SUPPORT_PBA
@@ -59,7 +59,9 @@ struct sec_jack_info {
 	struct input_dev *input;
 	struct wake_lock det_wake_lock;
 	struct sec_jack_zone *zone;
-
+#ifdef JACK_REMOTE_KEY
+	int pressed_code;
+#endif
 	bool send_key_pressed;
 	bool send_key_irq_enabled;
 	unsigned int cur_jack_type;
@@ -79,10 +81,61 @@ struct switch_dev switch_sendend = {
 
 static void set_send_key_state(struct sec_jack_info *hi, int state)
 {
+#ifdef JACK_REMOTE_KEY
+	struct sec_jack_platform_data *pdata = hi->pdata;
+	struct sec_jack_buttons_zone *btn_zones = pdata->buttons_zones;
+	int adc;
+	int i;
+
+	/* when button is released */
+	if (state == 0) {
+		input_report_key(hi->input, hi->pressed_code, 0);
+		switch_set_state(&switch_sendend, 0);
+		input_sync(hi->input);
+		pr_info("%s: keycode=%d, is released\n", __func__,
+			hi->pressed_code);
+      	hi->send_key_pressed = state;
+		return;
+	}
+
+	/* when button is pressed */
+	adc = pdata->get_adc_value();
+
+	pr_err("[HSS][%s]: adc=%d\n", __func__, adc);
+
+	msleep(40);
+
+	if(!pdata->get_send_key_state() || !pdata->get_det_jack_state())
+	{
+		pr_warn("%s: key is skipped. ADC value is %d, send_key_state is %d, jack_state is %d.\n", __func__, adc, pdata->get_send_key_state(), pdata->get_det_jack_state());
+		hi->send_key_pressed = 0;
+
+		return;
+ 	}
+
+	for (i = 0; i < pdata->num_buttons_zones; i++)
+		if (adc >= btn_zones[i].adc_low &&
+		    adc <= btn_zones[i].adc_high) {
+			hi->pressed_code = btn_zones[i].code;
+			input_report_key(hi->input, btn_zones[i].code, 1);
+			switch_set_state(&switch_sendend, 1);
+			input_sync(hi->input);
+			pr_info("%s: keycode=%d, is pressed\n", __func__,
+				btn_zones[i].code);
+            	hi->send_key_pressed = state;
+			return;
+		}
+
+	pr_warn("%s: key is skipped. ADC value is %d.\n", __func__, adc);
+     	hi->send_key_pressed = 0;
+
+    return;
+#else
 	input_report_key(hi->input, KEY_MEDIA, state);
 	input_sync(hi->input);
 	switch_set_state(&switch_sendend, state);
 	hi->send_key_pressed = state;
+#endif
 }
 
 static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
@@ -93,7 +146,13 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 	 * the type but then we get another interrupt and do it again
 	 */
 	if (jack_type == hi->cur_jack_type)
+	{
+#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)// [HSS] Fix Ancora HW Issue
+		if (jack_type  != SEC_HEADSET_4POLE)
+			pdata->set_micbias_state(false);
+#endif
 		return;
+	}
 
 	if (jack_type == SEC_HEADSET_4POLE) {
 		/* for a 4 pole headset, enable irq
@@ -146,7 +205,7 @@ static void determine_jack_type(struct sec_jack_info *hi)
 
 	while (hi->pdata->get_det_jack_state()) {
 		adc = hi->pdata->get_adc_value();
-		pr_debug(MODULE_NAME "adc = %d\n", adc);
+		pr_err("[%s]: adc=%d\n", __func__, adc);
 
 		/* determine the type of headset based on the
 		 * adc value.  An adc value can fall in various
@@ -287,6 +346,9 @@ static int sec_jack_probe(struct platform_device *pdev)
 		pr_err("%s : need to check pdata\n", __func__);
 		return -ENODEV;
 	}
+#ifdef GET_JACK_ADC
+   pdata->rpc_init();
+#endif
 
 	hi = kzalloc(sizeof(struct sec_jack_info), GFP_KERNEL);
 	if (hi == NULL) {
@@ -304,6 +366,10 @@ static int sec_jack_probe(struct platform_device *pdev)
 
 	hi->input->name = "sec_jack";
 	input_set_capability(hi->input, EV_KEY, KEY_MEDIA);
+#ifdef JACK_REMOTE_KEY
+	input_set_capability(hi->input, EV_KEY, KEY_VOLUMEUP);
+	input_set_capability(hi->input, EV_KEY, KEY_VOLUMEDOWN);
+#endif
 	ret = input_register_device(hi->input);
 	if (ret) {
 		pr_err("%s : Failed to register driver\n", __func__);
@@ -372,7 +438,7 @@ static int sec_jack_probe(struct platform_device *pdev)
 	disable_irq(pdata->send_int);
 	dev_set_drvdata(&pdev->dev, hi);
 
-#if (defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART))
+#if (defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE))
 	/* call irq_thread forcely because of missing interrupt when booting. */
 	if(pdata->get_det_jack_state())
 	{

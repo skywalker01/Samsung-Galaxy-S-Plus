@@ -63,7 +63,6 @@ EXPORT_SYMBOL(panic_blink);
  */
 #include "../arch/arm/mach-msm/smd_private.h"
 #include "../arch/arm/mach-msm/proc_comm.h"
-#include <mach/msm_iomap-7xxx.h>
 #include <mach/msm_iomap.h>
 #include <asm/io.h>
 
@@ -78,7 +77,7 @@ NORET_TYPE void panic(const char * fmt, ...)
 {
 	static char buf[1024];
 	va_list args;
-	long i=0;
+	long i;
 
 #ifdef CONFIG_KERNEL_DEBUG_SEC
 	sec_kernel_panic = 1;

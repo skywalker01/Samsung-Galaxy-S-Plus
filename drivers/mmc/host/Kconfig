@@ -510,7 +510,6 @@ config MMC_MSM_SDC5_DUMMY52_REQUIRED
 	  Select Y to enable sending dummy 52 reads to complete
 	  all data commands.  Required for some SDIO cards.
 	  If unsure, say N.
-
 config MMC_MSM_PROG_DONE_SCAN
 	bool "Perform prog done scan as needed for SDIO"
 	depends on MMC_MSM

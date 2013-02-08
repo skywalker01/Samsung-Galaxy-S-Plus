@@ -53,15 +53,36 @@
 //#define PROX_MODE_A
 #define PROX_MODE_B
 
+#if defined(CONFIG_MACH_APACHE)
+//#define PROX_MODE_B_15 //B1.5 mode
+//#define PROX_MODE_B_20
+/*
+HYS reg setting
+
+            B1         B1.5	B2.0
+VO=0    0x40      0x2F	0x20
+VO=1    0x20      0x0F	0x00
+*/
+#endif
+
+#if defined(PROX_MODE_B)
+	#if defined(PROX_MODE_B_20)
+		#define REGS_HYS_VAL_VO_0 (0x20)
+		#define REGS_HYS_VAL_VO_1 (0x00)
+	#elif defined(PROX_MODE_B_15)
+		#define REGS_HYS_VAL_VO_0 (0x2F)
+		#define REGS_HYS_VAL_VO_1 (0x0F)
+	#else
+		#define REGS_HYS_VAL_VO_0 (0x40)
+		#define REGS_HYS_VAL_VO_1 (0x20)
+	#endif
+#endif
+
 #define SENSOR_DEFAULT_DELAY            (200)   /* 200 ms */
 #define SENSOR_MAX_DELAY                (2000)  /* 2000 ms */
 #define ABS_STATUS                      (ABS_BRAKE)
 #define ABS_WAKE                        (ABS_MISC)
 #define ABS_CONTROL_REPORT              (ABS_THROTTLE)
-
-/* sdcard detect */
-extern unsigned int external_sd_status;
-static unsigned int external_sd_status_read = 0;
 
 /* global var */
 static struct wake_lock prx_wake_lock;
@@ -83,7 +104,7 @@ struct gp2a_data {
 
   	struct kobject *uevent_kobj;
 };
-
+static char get_ps_vout_value(void);
 
 static struct gp2a_data *prox_data = NULL;
 
@@ -105,7 +126,7 @@ static u8 gp2a_original_image[8] =
 #else
 	0x00,
 	0x08,
-	0x40,
+	REGS_HYS_VAL_VO_0,
 	0x04,
 	0x03,
 #endif //PROX_MODE_A
@@ -191,78 +212,28 @@ proximity_enable_store(struct device *dev,
     struct input_dev *input_data = to_input_dev(dev);
     struct gp2a_data *data = input_get_drvdata(input_data);
     int value = simple_strtoul(buf, NULL, 10);
-    int err = 0;
-
-    struct file *fp_sd 	 = NULL;
-	mm_segment_t old_fs;
-
-	if( external_sd_status_read==0 )
-	{
-	//For Hardware detected
-	printk(KERN_INFO "SD card Hardware detected\n");
-	fp_sd = filp_open( "/persist/sd_det.bin", O_RDWR , 0666);
-
-	if(IS_ERR(fp_sd)||(fp_sd==NULL))
-	{
-		printk(KERN_ERR "[SDCard] %s: File open error\n", "persist/sd_det.bin");
-	}
-	else
-	{
-
-		old_fs = get_fs();
-       	set_fs(KERNEL_DS);
-
-		char buffer[2]	 = {1};
-		if(fp_sd->f_mode & FMODE_WRITE)
-		{
-			if( external_sd_status == 0 ){
-			sprintf(buffer,"1\n");
-			printk(KERN_INFO "[SDCard] external_sd_status = 1\n");
-			}else{
-			sprintf(buffer,"0\n");
-			printk(KERN_INFO "[SDCard] external_sd_status = 0\n");
-			}
-			fp_sd->f_op->write(fp_sd, (const char *)buffer, sizeof(buffer), &fp_sd->f_pos);
-		}
-
-		if( fp_sd != NULL ) {
- 		filp_close(fp_sd, NULL);
- 		fp_sd = NULL;
- 		}
-		external_sd_status_read = 1;
- 		set_fs(old_fs);
-
-		}
-	}
-
-    gprintk("\n");
-
+	char input;
 
 
     if (value != 0 && value != 1) {
+        printk("[TAEKS] value != 0 && value != 1\n");
         return count;
     }
 
     if (data->enabled && !value) { 			/* Proximity power off */
-
-	//register irq to wakeup source
-	err = set_irq_wake(IRQ_GP2A_INT, 0);	// enable : 1, disable : 0
-	printk("[TAEKS] register wakeup source = %d\n",err);
-	if (err)
-		printk("[TAEKS] register wakeup source failed\n");
-
-       disable_irq(IRQ_GP2A_INT);
-	proximity_onoff(0);
+        printk("[TAEKS] Proximity power off \n");
+        disable_irq(IRQ_GP2A_INT);
+		proximity_onoff(0);
     }
     if (!data->enabled && value) {			/* proximity power on */
-	proximity_onoff(1);
-
-	//register irq to wakeup source
-	err = set_irq_wake(IRQ_GP2A_INT, 1);	// enable : 1, disable : 0
-	printk("[TAEKS] register wakeup source = %d\n",err);
-	if (err)
-		printk("[TAEKS] register wakeup source failed\n");
-
+        printk("[TAEKS] Proximity power on \n");
+		proximity_onoff(1);
+		input = get_ps_vout_value();
+#if defined(CONFIG_MACH_APACHE)
+		data->prox_data = input;
+#endif
+		input_report_abs(data->input_dev, ABS_DISTANCE,  input);
+		input_sync(data->input_dev);
         enable_irq(IRQ_GP2A_INT);
     }
     data->enabled = value;
@@ -328,18 +299,25 @@ static struct attribute_group proximity_attribute_group = {
 
 static char get_ps_vout_value(void)
 {
-  char value = 0;
-
-
 #ifdef PROX_MODE_A
+  char value=0;
+
   value = gpio_get_value_cansleep(GPIO_PS_VOUT);
-#else //PROX_MODE_A
-  opt_i2c_read(0x00, &value, 2);
+
   value &= 0x01;
   value ^= 0x01;
-#endif //PROX_MODE_A
 
   return value;
+#else //PROX_MODE_A
+  char value[2]={0,};
+
+  opt_i2c_read(0x00, value, sizeof(value));
+
+  value[1] &= 0x01;
+  value[1] ^= 0x01;
+
+   return value[1];
+#endif //PROX_MODE_A
 }
 /*****************************************************************************************
  *
@@ -363,7 +341,7 @@ static void gp2a_work_func_prox(struct work_struct *work)
 
     value = get_ps_vout_value();
 
-    input_report_abs(gp2a->input_dev, ABS_X,  value);
+	input_report_abs(gp2a->input_dev, ABS_DISTANCE,  value);
     input_sync(gp2a->input_dev);
 
 	gp2a->prox_data= value;
@@ -372,12 +350,12 @@ static void gp2a_work_func_prox(struct work_struct *work)
 #ifdef PROX_MODE_B
     if(value == 1) //VO == 0
     {
-      reg = 0x40;
-      opt_i2c_write(NOT_INT_CLR(REGS_HYS), &reg);
+	reg = REGS_HYS_VAL_VO_0;
+	opt_i2c_write(NOT_INT_CLR(REGS_HYS), &reg);
     }
     else
     {
-      reg = 0x20;
+      reg = REGS_HYS_VAL_VO_1;
       opt_i2c_write(NOT_INT_CLR(REGS_HYS), &reg);
     }
 
@@ -396,7 +374,6 @@ static void gp2a_work_func_prox(struct work_struct *work)
 
 irqreturn_t gp2a_irq_handler(int irq, void *dev_id)
 {
-    u8 reg = 0;
 
 	wake_lock_timeout(&prx_wake_lock, 3*HZ);
 
@@ -421,27 +398,33 @@ static int opt_i2c_init(void)
 
 int opt_i2c_read(u8 reg, u8 *val, unsigned int len )
 {
+	struct i2c_msg msg;
 
-	int err;
-	u8 buf[1];
-	struct i2c_msg msg[2];
+	msg.addr = opt_i2c_client->addr;
+	msg.flags = I2C_M_WR;
+	msg.len = 1;
+	msg.buf = &reg;
 
-	buf[0] = reg;
+	if(1 != i2c_transfer(opt_i2c_client->adapter, &msg, 1))
+	{
+		printk("%s %d i2c transfer error\n", __func__, __LINE__);
+		return -EIO;
+	}
 
-	msg[0].addr = opt_i2c_client->addr;
-	msg[0].flags = 1;
+	msg.addr = opt_i2c_client->addr;
+	msg.flags = I2C_M_RD;
+	msg.len = len;
+	msg.buf = val;
 
-	msg[0].len = len;
-	msg[0].buf = buf;
-	err = i2c_transfer(opt_i2c_client->adapter, msg, 1);
+	if(1 != i2c_transfer(opt_i2c_client->adapter, &msg, 1))
+	{
+		printk("%s %d i2c transfer error\n", __func__, __LINE__);
+		return -EIO;
+	}
 
-	*val = buf[1];
+	gprintk(": 0x%x, 0x%x \n", reg, *val);
 
-    gprintk(": 0x%x, 0x%x \n", reg, *val);
-    if (err >= 0) return 0;
-
-    printk("%s %d i2c transfer error\n", __func__, __LINE__);
-    return err;
+	return 0;
 }
 
 int opt_i2c_write( u8 reg, u8 *val )
@@ -493,13 +476,13 @@ static int proximity_input_init(struct gp2a_data *data)
 	}
 
 	set_bit(EV_ABS, dev->evbit);
-	input_set_capability(dev, EV_ABS, ABS_X);
+	input_set_capability(dev, EV_ABS, ABS_DISTANCE);
 
 	input_set_capability(dev, EV_ABS, ABS_STATUS); /* status */
 	input_set_capability(dev, EV_ABS, ABS_WAKE); /* wake */
 	input_set_capability(dev, EV_ABS, ABS_CONTROL_REPORT); /* enabled/delay */
 
-	dev->name = "proximity";
+	dev->name = "proximity_sensor";
 	input_set_drvdata(dev, data);
 
 	err = input_register_device(dev);
@@ -620,22 +603,27 @@ static int gp2a_opt_remove( struct platform_device* pdev )
 static int gp2a_opt_suspend( struct platform_device* pdev, pm_message_t state )
 {
 	struct gp2a_data *gp2a = platform_get_drvdata(pdev);
+       int err = 0;
+
 
 	gprintk("\n");
 
-#if 0
 	if(gp2a->enabled) // calling
 	{
+		err = set_irq_wake(IRQ_GP2A_INT, 1);	  // enable : 1, disable : 0
+		printk("[TAEKS] set_irq_wake = %d\n",err);
+		if (err)
+			printk("[TAEKS] set_irq_wake failed\n");
 
-      if (device_may_wakeup(&pdev->dev))
-        enable_irq_wake(IRQ_GP2A_INT);
-
-	   gprintk("The timer is cancled.\n");
-     	return 0;
+		if (device_may_wakeup(&pdev->dev))
+	      	{
+			printk("[TAEKS] device_may_wakeup\n");
+			enable_irq_wake(IRQ_GP2A_INT);
+		}
+ 		return 0;
 	}
 	gpio_set_value_cansleep(PM8058_GPIO_PM_TO_SYS(PMIC_GPIO_PROX_EN), 0);
-#endif
-
+	printk("[TAEKS] gpio_set_value_cansleep PMIC_GPIO_PROX_EN 0 \n");
 	return 0;
 }
 
@@ -643,22 +631,25 @@ static int gp2a_opt_resume( struct platform_device* pdev )
 {
 
 	struct gp2a_data *gp2a = platform_get_drvdata(pdev);
+	int err = 0;
 
 	gprintk("\n");
 
-#if 0
 	if(gp2a->enabled) //calling
 	{
-      if (device_may_wakeup(&pdev->dev))
-        disable_irq_wake(IRQ_GP2A_INT);
-
-      gprintk("The timer is cancled.\n");
+		err = set_irq_wake(IRQ_GP2A_INT, 0);	  // enable : 1, disable : 0
+		printk("[TAEKS] set_irq_wake = %d\n",err);
+		if (err)
+			printk("[TAEKS] set_irq_wake failed\n");
+	       if (device_may_wakeup(&pdev->dev))
+	   	{
+			printk("[TAEKS] device_may_wakeup\n");
+	   		disable_irq_wake(IRQ_GP2A_INT);
+		}
 	}
 	gpio_set_value_cansleep(PM8058_GPIO_PM_TO_SYS(PMIC_GPIO_PROX_EN), 1);
-	proximity_onoff(1);  // when proximity 0 , enter suspend and than resume proximity does not work issue
-
-#endif
-    return 0;
+	printk("[TAEKS] gpio_set_value_cansleep PMIC_GPIO_PROX_EN 1 \n");
+	return 0;
 }
 
 static int proximity_onoff(u8 onoff)
@@ -767,4 +758,5 @@ module_exit( gp2a_opt_exit );
 MODULE_AUTHOR("SAMSUNG");
 MODULE_DESCRIPTION("Optical Sensor driver for GP2AP002A00F");
 MODULE_LICENSE("GPL");
+
 

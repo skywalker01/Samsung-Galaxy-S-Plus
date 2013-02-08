@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/smd_rpcrouter.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2007-2010, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2007-2011, Code Aurora Forum. All rights reserved.
  * Author: San Mehat <san@android.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -40,6 +40,7 @@
 #include <linux/platform_device.h>
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
+#include <linux/ratelimit.h>
 
 #include <asm/byteorder.h>
 
@@ -68,55 +69,55 @@ static int smd_rpcrouter_debug_mask;
 module_param_named(debug_mask, smd_rpcrouter_debug_mask,
 		   int, S_IRUGO | S_IWUSR | S_IWGRP);
 
-#define DIAG(x...) printk(KERN_ERR "[RR] ERROR " x)
+#define DIAG(x...) pr_err("[RR] ERROR " x)
 
 #if defined(CONFIG_MSM_ONCRPCROUTER_DEBUG)
 #define D(x...) do { \
 if (smd_rpcrouter_debug_mask & RTR_DBG) \
-	printk(KERN_ERR x); \
+	pr_info_ratelimited(x); \
 } while (0)
 
 #define RR(x...) do { \
 if (smd_rpcrouter_debug_mask & R2R_MSG) \
-	printk(KERN_ERR "[RR] "x); \
+	pr_info_ratelimited("[RR] "x); \
 } while (0)
 
 #define RAW(x...) do { \
 if (smd_rpcrouter_debug_mask & R2R_RAW) \
-	printk(KERN_ERR "[RAW] "x); \
+	pr_info_ratelimited("[RAW] "x); \
 } while (0)
 
 #define RAW_HDR(x...) do { \
 if (smd_rpcrouter_debug_mask & R2R_RAW_HDR) \
-	printk(KERN_ERR "[HDR] "x); \
+	pr_info_ratelimited("[HDR] "x); \
 } while (0)
 
 #define RAW_PMR(x...) do { \
 if (smd_rpcrouter_debug_mask & RAW_PMR) \
-	printk(KERN_ERR "[PMR] "x); \
+	pr_info_ratelimited("[PMR] "x); \
 } while (0)
 
 #define RAW_PMR_NOMASK(x...) do { \
-	printk(KERN_ERR "[PMR] "x); \
+	pr_info_ratelimited("[PMR] "x); \
 } while (0)
 
 #define RAW_PMW(x...) do { \
 if (smd_rpcrouter_debug_mask & RAW_PMW) \
-	printk(KERN_ERR "[PMW] "x); \
+	pr_info_ratelimited("[PMW] "x); \
 } while (0)
 
 #define RAW_PMW_NOMASK(x...) do { \
-	printk(KERN_ERR "[PMW] "x); \
+	pr_info_ratelimited("[PMW] "x); \
 } while (0)
 
 #define IO(x...) do { \
 if (smd_rpcrouter_debug_mask & RPC_MSG) \
-	printk(KERN_ERR "[RPC] "x); \
+	pr_info_ratelimited("[RPC] "x); \
 } while (0)
 
 #define NTFY(x...) do { \
 if (smd_rpcrouter_debug_mask & NTFY_MSG) \
-	printk(KERN_ERR "[NOTIFY] "x); \
+	pr_info_ratelimited("[NOTIFY] "x); \
 } while (0)
 #else
 #define D(x...) do { } while (0)
@@ -131,7 +132,9 @@ if (smd_rpcrouter_debug_mask & NTFY_MSG) \
 #define NTFY(x...) do { } while (0)
 #endif
 
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 extern int power_off_done;
+#endif
 
 static LIST_HEAD(local_endpoints);
 static LIST_HEAD(remote_endpoints);
@@ -211,6 +214,7 @@ struct rpcrouter_xprt_info {
 	uint32_t need_len;
 	struct work_struct read_data;
 	struct workqueue_struct *workqueue;
+	unsigned char r2r_buf[RPCROUTER_MSGSIZE_MAX];
 };
 
 static LIST_HEAD(xprt_info_list);
@@ -222,14 +226,10 @@ static struct rpcrouter_xprt_info *rpcrouter_get_xprt_info(uint32_t remote_pid)
 {
 	struct rpcrouter_xprt_info *xprt_info;
 
-	mutex_lock(&xprt_info_list_lock);
 	list_for_each_entry(xprt_info, &xprt_info_list, list) {
-		if (xprt_info->remote_pid == remote_pid) {
-			mutex_unlock(&xprt_info_list_lock);
+		if (xprt_info->remote_pid == remote_pid)
 			return xprt_info;
 		}
-	}
-	mutex_unlock(&xprt_info_list_lock);
 	return NULL;
 }
 
@@ -549,6 +549,10 @@ int msm_rpcrouter_destroy_local_endpoint(struct msm_rpc_endpoint *ept)
 	/* Endpoint with dst_pid = 0xffffffff corresponds to that of
 	** router port. So don't send a REMOVE CLIENT message while
 	** destroying it.*/
+	spin_lock_irqsave(&local_endpoints_lock, flags);
+	list_del(&ept->list);
+	spin_unlock_irqrestore(&local_endpoints_lock, flags);
+
 	if (ept->dst_pid != 0xffffffff) {
 		msg.cmd = RPCROUTER_CTRL_CMD_REMOVE_CLIENT;
 		msg.cli.pid = ept->pid;
@@ -580,9 +584,6 @@ int msm_rpcrouter_destroy_local_endpoint(struct msm_rpc_endpoint *ept)
 
 	wake_lock_destroy(&ept->read_q_wake_lock);
 	wake_lock_destroy(&ept->reply_q_wake_lock);
-	spin_lock_irqsave(&local_endpoints_lock, flags);
-	list_del(&ept->list);
-	spin_unlock_irqrestore(&local_endpoints_lock, flags);
 	kfree(ept);
 	return 0;
 }
@@ -612,16 +613,13 @@ static int rpcrouter_create_remote_endpoint(uint32_t pid, uint32_t cid)
 static struct msm_rpc_endpoint *rpcrouter_lookup_local_endpoint(uint32_t cid)
 {
 	struct msm_rpc_endpoint *ept;
-	unsigned long flags;
 
-	spin_lock_irqsave(&local_endpoints_lock, flags);
 	list_for_each_entry(ept, &local_endpoints, list) {
 		if (ept->cid == cid) {
-			spin_unlock_irqrestore(&local_endpoints_lock, flags);
 			return ept;
 		}
 	}
-	spin_unlock_irqrestore(&local_endpoints_lock, flags);
+
 	return NULL;
 }
 
@@ -857,6 +855,8 @@ static void do_create_pdevs(struct work_struct *work)
 	list_for_each_entry(server, &server_list, list) {
 		if (server->pid != RPCROUTER_PID_LOCAL) {
 			if (server->pdev_name[0] == 0) {
+				sprintf(server->pdev_name, "rs%.8x",
+					server->prog);
 				spin_unlock_irqrestore(&server_list_lock,
 						       flags);
 				msm_rpcrouter_create_server_pdev(server);
@@ -881,13 +881,19 @@ static void *rr_malloc(unsigned sz)
 
 	return ptr;
 }
-
+#if defined(CONFIG_MACH_ANCORA_TMO_DEBUG_DOG)||defined(CONFIG_MACH_APACHE_DEBUG_DOG)
+#define ALRAN_RPC
+#endif
 static int rr_read(struct rpcrouter_xprt_info *xprt_info,
 		   void *data, uint32_t len)
 {
 	int rc;
 	unsigned long flags;
-
+#ifdef ALRAN_RPC
+	static unsigned long last_sec;
+	static unsigned long last_usec;
+	unsigned long long t;
+#endif
 	for(;;) {
 		spin_lock_irqsave(&xprt_info->lock, flags);
 		if (xprt_info->xprt->read_avail() >= len) {
@@ -902,8 +908,14 @@ static int rr_read(struct rpcrouter_xprt_info *xprt_info,
 		wake_unlock(&xprt_info->wakelock);
 		spin_unlock_irqrestore(&xprt_info->lock, flags);
 
-		wait_event(xprt_info->read_wait,
-			   xprt_info->xprt->read_avail() >= len);
+		wait_event_timeout(xprt_info->read_wait,
+		xprt_info->xprt->read_avail() >= len, 5 * HZ);
+
+#ifdef ALRAN_RPC
+	t = sched_clock();
+	last_usec = do_div(t, 1000000000) / 1000;
+	last_sec = (unsigned long) t;
+#endif
 	}
 	return 0;
 }
@@ -933,8 +945,6 @@ static char *type_to_str(int i)
 	}
 }
 #endif
-
-static uint32_t r2r_buf[RPCROUTER_MSGSIZE_MAX];
 
 static void do_read_data(struct work_struct *work)
 {
@@ -978,9 +988,10 @@ static void do_read_data(struct work_struct *work)
 		if (xprt_info->remote_pid == -1)
 			xprt_info->remote_pid = hdr.src_pid;
 
-		if (rr_read(xprt_info, r2r_buf, hdr.size))
+		if (rr_read(xprt_info, xprt_info->r2r_buf, hdr.size))
 			goto fail_io;
-		process_control_msg(xprt_info, (void *) r2r_buf, hdr.size);
+		process_control_msg(xprt_info,
+				    (void *) xprt_info->r2r_buf, hdr.size);
 		goto done;
 	}
 
@@ -1036,8 +1047,10 @@ static void do_read_data(struct work_struct *work)
 	}
 #endif
 
+	spin_lock_irqsave(&local_endpoints_lock, flags);
 	ept = rpcrouter_lookup_local_endpoint(hdr.dst_cid);
 	if (!ept) {
+		spin_unlock_irqrestore(&local_endpoints_lock, flags);
 		DIAG("no local ept for cid %08x\n", hdr.dst_cid);
 		kfree(frag);
 		goto done;
@@ -1047,7 +1060,7 @@ static void do_read_data(struct work_struct *work)
 	 * and if so, append this fragment to that packet.
 	 */
 	mid = PACMARK_MID(pm);
-	spin_lock_irqsave(&ept->incomplete_lock, flags);
+	spin_lock(&ept->incomplete_lock);
 	list_for_each_entry(pkt, &ept->incomplete, list) {
 		if (pkt->mid == mid) {
 			pkt->last->next = frag;
@@ -1055,15 +1068,16 @@ static void do_read_data(struct work_struct *work)
 			pkt->length += frag->length;
 			if (PACMARK_LAST(pm)) {
 				list_del(&pkt->list);
-				spin_unlock_irqrestore(&ept->incomplete_lock,
-						       flags);
+				spin_unlock(&ept->incomplete_lock);
 				goto packet_complete;
 			}
-			spin_unlock_irqrestore(&ept->incomplete_lock, flags);
+			spin_unlock(&ept->incomplete_lock);
+			spin_unlock_irqrestore(&local_endpoints_lock, flags);
 			goto done;
 		}
 	}
-	spin_unlock_irqrestore(&ept->incomplete_lock, flags);
+	spin_unlock(&ept->incomplete_lock);
+	spin_unlock_irqrestore(&local_endpoints_lock, flags);
 	/* This mid is new -- create a packet for it, and put it on
 	 * the incomplete list if this fragment is not a last fragment,
 	 * otherwise put it on the read queue.
@@ -1074,18 +1088,32 @@ static void do_read_data(struct work_struct *work)
 	memcpy(&pkt->hdr, &hdr, sizeof(hdr));
 	pkt->mid = mid;
 	pkt->length = frag->length;
+
+	spin_lock_irqsave(&local_endpoints_lock, flags);
+	ept = rpcrouter_lookup_local_endpoint(hdr.dst_cid);
+	if (!ept) {
+		spin_unlock_irqrestore(&local_endpoints_lock, flags);
+		DIAG("no local ept for cid %08x\n", hdr.dst_cid);
+		kfree(frag);
+		kfree(pkt);
+		goto done;
+	}
 	if (!PACMARK_LAST(pm)) {
+		spin_lock(&ept->incomplete_lock);
 		list_add_tail(&pkt->list, &ept->incomplete);
+		spin_unlock(&ept->incomplete_lock);
+		spin_unlock_irqrestore(&local_endpoints_lock, flags);
 		goto done;
 	}
 
 packet_complete:
-	spin_lock_irqsave(&ept->read_q_lock, flags);
+	spin_lock(&ept->read_q_lock);
 	D("%s: take read lock on ept %p\n", __func__, ept);
 	wake_lock(&ept->read_q_wake_lock);
 	list_add_tail(&pkt->list, &ept->read_q);
 	wake_up(&ept->wait_q);
-	spin_unlock_irqrestore(&ept->read_q_lock, flags);
+	spin_unlock(&ept->read_q_lock);
+	spin_unlock_irqrestore(&local_endpoints_lock, flags);
 done:
 
 	if (hdr.confirm_rx) {
@@ -1261,9 +1289,14 @@ static int msm_rpc_write_pkt(
 	if (r_ept)
 		spin_unlock_irqrestore(&r_ept->quota_lock, flags);
 
+	mutex_lock(&xprt_info_list_lock);
 	xprt_info = rpcrouter_get_xprt_info(hdr->dst_pid);
-
+	if (!xprt_info) {
+		mutex_unlock(&xprt_info_list_lock);
+		return -ENETRESET;
+	}
 	spin_lock_irqsave(&xprt_info->lock, flags);
+	mutex_unlock(&xprt_info_list_lock);
 	spin_lock(&ept->restart_lock);
 	if (ept->restart_state != RESTART_NORMAL) {
 		ept->restart_state &= ~RESTART_PEND_NTFY;
@@ -1278,7 +1311,14 @@ static int msm_rpc_write_pkt(
 		spin_unlock(&ept->restart_lock);
 		spin_unlock_irqrestore(&xprt_info->lock, flags);
 		msleep(250);
+		mutex_lock(&xprt_info_list_lock);
+		xprt_info = rpcrouter_get_xprt_info(hdr->dst_pid);
+		if (!xprt_info) {
+			mutex_unlock(&xprt_info_list_lock);
+			return -ENETRESET;
+		}
 		spin_lock_irqsave(&xprt_info->lock, flags);
+		mutex_unlock(&xprt_info_list_lock);
 		spin_lock(&ept->restart_lock);
 	}
 	if (ept->restart_state != RESTART_NORMAL) {
@@ -1448,11 +1488,11 @@ int msm_rpc_write(struct msm_rpc_endpoint *ept, void *buffer, int count)
 
 	/* has to have at least the xid and type fields */
 
-
-	if(power_off_done)
-	{
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
+	if(power_off_done) {
 		return 0;
 	}
+#endif
 
 	if (count < (sizeof(uint32_t) * 2)) {
 		printk(KERN_ERR "rr_write: rejecting runt packet\n");
@@ -1579,10 +1619,11 @@ int msm_rpc_read(struct msm_rpc_endpoint *ept, void **buffer,
 	char *buf;
 	int rc;
 
-	if(power_off_done)
-	{
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
+	if(power_off_done) {
 		return 0;
 	}
+#endif
 
 	rc = __msm_rpc_read(ept, &frag, user_len, timeout);
 	if (rc <= 0)
@@ -2305,6 +2346,8 @@ static int __init rpcrouter_init(void)
 	int ret;
 
 	msm_rpc_connect_timeout_ms = 0;
+	//smd_rpcrouter_debug_mask |= (SMEM_LOG | R2R_MSG | RPC_MSG);
+	//smd_rpcrouter_debug_mask = 511;
 	smd_rpcrouter_debug_mask |= SMEM_LOG;
 	debugfs_init();
 

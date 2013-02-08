@@ -170,6 +170,20 @@ config BATTERY_ANCORA
 	help
 	  Say Y to enable support for the battery in Samsung Ancora.
 
+config BATTERY_ANCORA_TMO
+	tristate "Ancora TMO battery"
+	depends on MACH_ANCORA_TMO
+	default n
+	help
+	  Say Y to enable support for the battery in Samsung Ancora.
+
+config BATTERY_APACHE
+	tristate "Apache battery"
+	depends on MACH_APACHE
+	default n
+	help
+	  Say Y to enable support for the battery in Samsung Apache.
+
 config BATTERY_GODART
 	tristate "Godart battery"
 	depends on MACH_GODART
@@ -215,6 +229,12 @@ config SMB137B_CHARGER
          Choose Y if you are compiling for Qualcomm's msm8x60 fluid board.
 	 To compile this driver as a module, choose M here: the module will
 	 be called smb137b.
+
+config CHARGER_SMB328A
+	bool "Enable SMB328A charger driver"
+	default n
+	help
+	  Say Y here to enable support for charger with SMB328A chip
 
 config BATTERY_MSM_FAKE
 	tristate "Fake MSM battery"

@@ -39,6 +39,7 @@
 
 /* spinlock for vfsmount related operations, inplace of dcache_lock */
 __cacheline_aligned_in_smp DEFINE_SPINLOCK(vfsmount_lock);
+EXPORT_SYMBOL(vfsmount_lock);
 
 static int event;
 static DEFINE_IDA(mnt_id_ida);
@@ -1279,6 +1280,7 @@ int iterate_mounts(int (*f)(struct vfsmount *, void *), void *arg,
 	}
 	return 0;
 }
+EXPORT_SYMBOL(iterate_mounts);
 
 static void cleanup_group_ids(struct vfsmount *mnt, struct vfsmount *end)
 {
@@ -1965,8 +1967,8 @@ long do_mount(char *dev_name, char *dir_name, char *type_page,
 		goto dput_out;
 
 	/* Default to relatime unless overriden */
-	// if (!(flags & MS_NOATIME))
-	//	mnt_flags |= MNT_RELATIME;
+	if (!(flags & MS_NOATIME))
+		mnt_flags |= MNT_RELATIME;
 
 	/* Separate the per-mountpoint flags */
 	if (flags & MS_NOSUID)
@@ -1975,9 +1977,9 @@ long do_mount(char *dev_name, char *dir_name, char *type_page,
 		mnt_flags |= MNT_NODEV;
 	if (flags & MS_NOEXEC)
 		mnt_flags |= MNT_NOEXEC;
-	//if (flags & MS_NOATIME)
+	if (flags & MS_NOATIME)
 		mnt_flags |= MNT_NOATIME;
-	//if (flags & MS_NODIRATIME)
+	if (flags & MS_NODIRATIME)
 		mnt_flags |= MNT_NODIRATIME;
 	if (flags & MS_STRICTATIME)
 		mnt_flags &= ~(MNT_RELATIME | MNT_NOATIME);

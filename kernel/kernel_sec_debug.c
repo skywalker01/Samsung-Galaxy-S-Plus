@@ -258,7 +258,18 @@ EXPORT_SYMBOL(kernel_sec_save_final_context);
  *    It's meaningful only ap master model.
  */
 #define RAMDUMP_MAGIC_NUM 0xCCCC// RAMDUMP MODE
-extern char sec_debug_info;
+
+struct smem_info {
+	unsigned int info;
+};
+extern struct smem_info *smem_flag;
+
+struct sec_debug_info_struct {
+	char debug_info_str[30][256];
+	unsigned long debug_info_int[10];
+};
+extern struct sec_debug_info_struct sec_debug_info;
+
 extern int dump_enable_flag;
 void kernel_sec_reset(bool bSilentReset)
 {
@@ -277,6 +288,9 @@ void kernel_sec_reset(bool bSilentReset)
 			smem->magic1 = gkernel_sec_upload_cause;
 			smem->magic2 = gkernel_sec_upload_cause;
 		}
+		sec_debug_info.debug_info_int[0] = smem_flag->info;
+		sec_debug_info.debug_info_int[1] = dump_enable_flag;
+		smem_flag->info = 0xA9A9A9A9;
 		writel(RAMDUMP_MAGIC_NUM, MSM_SHARED_RAM_BASE + 0x30); //proc_comm[3].command
 		writel(&sec_debug_info, MSM_SHARED_RAM_BASE + 0x38); //proc_comm[3].data1
 		writel(0x12341234, MSM_SHARED_RAM_BASE + 0x3C); //proc_comm[3].data2

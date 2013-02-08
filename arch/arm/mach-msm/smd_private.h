@@ -316,7 +316,7 @@ void *smem_find(unsigned id, unsigned size);
 void *smem_get_entry(unsigned id, unsigned *size);
 void smd_diag(void);
 
-#if (defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART))
+#if (defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 #define SMEM_VENDOR1_CAPTURE_BUF_SIZE (128*1024)
 
 typedef struct SMEM_VENDOR1_ID_TYPE

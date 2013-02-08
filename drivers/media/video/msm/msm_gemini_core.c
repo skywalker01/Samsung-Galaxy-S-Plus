@@ -16,7 +16,6 @@
  */
 
 #include <linux/module.h>
-#include <linux/sched.h>
 #include "msm_gemini_hw.h"
 #include "msm_gemini_core.h"
 #include "msm_gemini_platform.h"

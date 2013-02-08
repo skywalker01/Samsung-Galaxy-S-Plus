@@ -32,6 +32,7 @@
 
 /* max number of user-defined controls */
 #define MAX_USER_CONTROLS	32
+#define MAX_CONTROL_COUNT	1028
 
 struct snd_kctl_ioctl {
 	struct list_head list;		/* list of all ioctls */
@@ -196,6 +197,10 @@ static struct snd_kcontrol *snd_ctl_new(struct snd_kcontrol *control,
 
 	if (snd_BUG_ON(!control || !control->count))
 		return NULL;
+
+	if (control->count > MAX_CONTROL_COUNT)
+		return NULL;
+
 	kctl = kzalloc(sizeof(*kctl) + sizeof(struct snd_kcontrol_volatile) * control->count, GFP_KERNEL);
 	if (kctl == NULL) {
 		snd_printk(KERN_ERR "Cannot allocate control instance\n");
@@ -600,7 +605,7 @@ static int snd_ctl_elem_list(struct snd_card *card,
 	space = list.space;
 	first = 0;
 	/* try limit maximum space */
-	if (space > 65535)
+	if (space > 16384)
 		return -ENOMEM;
 	if (space > 0) {
 		/* allocate temporary buffer for atomic operation */
@@ -1153,6 +1158,27 @@ static int snd_ctl_tlv_ioctl(struct snd_ctl_file *file,
 	return err;
 }
 
+static int snd_ctl_pm_sleep_mode_change(int __user *ptr)
+{
+  extern int msm_pm_idle_sleep_mode;
+
+	int bState = 0;
+
+
+	if (get_user(bState, ptr))
+  		return -EFAULT;
+
+	if (bState == 1) {
+		msm_pm_idle_sleep_mode = MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT; //
+		snd_printk(KERN_INFO "msm_pm_idle_sleep_mode change to WAIT_FOR_INTERRUPT.\n");
+	} else {
+		msm_pm_idle_sleep_mode = CONFIG_MSM7X00A_IDLE_SLEEP_MODE;
+		snd_printk(KERN_INFO "msm_pm_idle_sleep_mode change to IDLE_SLEEP_MODE.\n");
+	}
+
+	return 0;
+}
+
 static long snd_ctl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct snd_ctl_file *ctl;
@@ -1205,6 +1231,8 @@ static long snd_ctl_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 #else
 		return put_user(SNDRV_CTL_POWER_D0, ip) ? -EFAULT : 0;
 #endif
+  	case SNDRV_CTL_IOCTL_PM_IDLE_SLEEP_MODE_CHANGE:
+    	return snd_ctl_pm_sleep_mode_change(ip);
 	}
 	down_read(&snd_ioctl_rwsem);
 	list_for_each_entry(p, &snd_control_ioctls, list) {

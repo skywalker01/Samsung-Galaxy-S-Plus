@@ -324,7 +324,7 @@ int  multipdp_buf_copy(int index, char *dpram, int size)
 	if( index < 0 || index > sizeof(multipdp_rbuf) || (index + size) > sizeof(multipdp_rbuf))
 		return -1;
 
-	printk("multipdp_buf_copy:index=%d size=%d\n", index, size);
+	dprintk("multipdp_buf_copy:index=%d size=%d\n", index, size);
 	memcpy( (void *)&multipdp_rbuf[index], (void *)dpram, size);
 	return( size);
 
@@ -357,12 +357,12 @@ int	multipdp_rx_data(dpram_device_t *device, int len)
 	//multipdp_rbuf
 	if( multipdp_rx_noti_func)
 	{
-		printk("multipdp_rx_data Before(noti_func) : len=%d\n",len);
+		dprintk("multipdp_rx_data Before(noti_func) : len=%d\n",len);
 		multipdp_rx_datalen = len;
 
 		ret = multipdp_rx_noti_func(multipdp_rbuf, len);
 		//memset(multipdp_rbuf, 0x00, len);
-		printk("multipdp_rx_data After(noti_func) : ret=%d\n",ret);
+		dprintk("multipdp_rx_data After(noti_func) : ret=%d\n",ret);
 	}
 
 	inuse_flag --;
@@ -521,10 +521,10 @@ static ssize_t store_whitelist(struct device *d,
 static DEVICE_ATTR(whitelist, S_IRUGO|S_IWUSR, NULL, store_whitelist);
 #endif
 
+
 static ssize_t store_power_down(struct device *d,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	int i;
 	char *after;
 	unsigned long value = simple_strtoul(buf, &after, 10);
 
@@ -538,6 +538,7 @@ static ssize_t store_power_down(struct device *d,
 }
 
 static DEVICE_ATTR(power_down, S_IRUGO|S_IWUSR, NULL, store_power_down);
+
 
 static int dpram_write(dpram_device_t *device,
 		const unsigned char *buf, int len)
@@ -927,8 +928,8 @@ static void print_smem(void)
     		printk("Can't creat /sdcard/dpram_dump file\n");
 		else
 		{
-			memcpy((void *)buf, (void *)SmemBase, 1024*32);
-			writelen = filp->f_op->write(filp,(void *)buf,1024*32,&filp->f_pos);
+			memcpy((void *)buf, (void *)SmemBase, DPRAM_SIZE/*1024*32*/);
+			writelen = filp->f_op->write(filp,(void *)buf,DPRAM_SIZE/*1024*32*/,&filp->f_pos);
 		}
 		set_fs(old_fs);
 #if 0
@@ -1800,7 +1801,7 @@ static int __devinit dpram_probe(struct platform_device *dev)
 
 	/* allocate smem dpram area */
 	dprintk("SMEM_DPRAM allocation\n");
-	SmemBase = (volatile unsigned char *)(smem_alloc(SMEM_ID_VENDOR0, 0x4000*2));
+	SmemBase = (volatile unsigned char *)(smem_alloc(SMEM_ID_VENDOR0, DPRAM_SIZE/*0x4000*2*/));
 	if (!SmemBase)
 	{
 		dprintk("smem_alloc failed : SmemBase = 0x%x\n", (unsigned int)SmemBase);
@@ -1898,7 +1899,6 @@ void power_down_timeout(unsigned long arg)
         power_down = true;
         pm_power_off();
 }
-
 
 static int silent_read_proc_debug(char *page, char **start, off_t offset,
 		                    int count, int *eof, void *data)

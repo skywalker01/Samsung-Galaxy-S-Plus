@@ -373,9 +373,19 @@ struct platform_device msm_device_smd = {
 	.id	= -1,
 };
 
+struct resource msm_dmov_resource[] = {
+	{
+		.start = INT_ADM_AARM,
+		.end = (resource_size_t)MSM_DMOV_BASE,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 struct platform_device msm_device_dmov = {
 	.name	= "msm_dmov",
 	.id	= -1,
+	.resource = msm_dmov_resource,
+	.num_resources = ARRAY_SIZE(msm_dmov_resource),
 };
 
 #define MSM_SDC1_BASE         0xA0400000
@@ -788,7 +798,6 @@ struct clk_lookup msm_clocks_7x27[] = {
 	CLK_VOTER("ebi1_mddi_clk",	EBI_MDDI_CLK,	"ebi1_clk", NULL, 0),
 	CLK_VOTER("ebi1_usb_clk",	EBI_USB_CLK,	"ebi1_clk", NULL, 0),
 	CLK_VOTER("ebi1_vfe_clk",	EBI_VFE_CLK,	"ebi1_clk", NULL, 0),
-	CLK_VOTER("ebi1_pm_qos_clk",	EBI_PM_QOS_CLK,	"ebi1_clk", NULL, 0),
 };
 
 unsigned msm_num_clocks_7x27 = ARRAY_SIZE(msm_clocks_7x27);

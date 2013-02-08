@@ -29,7 +29,6 @@
 #include <linux/utsname.h>
 #include <linux/uaccess.h>
 
-#include <asm/leds.h>
 #include <asm/processor.h>
 #include <asm/system.h>
 #include <asm/thread_notify.h>
@@ -146,8 +145,8 @@ void cpu_idle(void)
 
 	/* endless idle loop with no priority at all */
 	while (1) {
+		idle_notifier_call_chain(IDLE_START);
 		tick_nohz_stop_sched_tick(1);
-		leds_event(led_idle_start);
 		while (!need_resched()) {
 #ifdef CONFIG_HOTPLUG_CPU
 			if (cpu_is_offline(smp_processor_id()))
@@ -171,8 +170,8 @@ void cpu_idle(void)
 				local_irq_enable();
 			}
 		}
-		leds_event(led_idle_end);
 		tick_nohz_restart_sched_tick();
+		idle_notifier_call_chain(IDLE_END);
 		preempt_enable_no_resched();
 		schedule();
 		preempt_disable();
@@ -290,7 +289,11 @@ static void show_extra_register_data(struct pt_regs *regs, int nbytes)
 }
 
 #ifdef CONFIG_KERNEL_DEBUG_SEC
-char sec_debug_info[30][256];
+struct sec_debug_info_struct {
+	char debug_info_str[30][256];
+	unsigned long debug_info_int[10];
+};
+struct sec_debug_info_struct sec_debug_info;
 #endif
 void __show_regs(struct pt_regs *regs)
 {
@@ -318,24 +321,24 @@ void __show_regs(struct pt_regs *regs)
 		regs->ARM_r3, regs->ARM_r2,
 		regs->ARM_r1, regs->ARM_r0);
 #ifdef CONFIG_KERNEL_DEBUG_SEC
-	sprintf(sec_debug_info[0],"CPU: %d    %s  (%s %.*s)",
+	sprintf(sec_debug_info.debug_info_str[0],"CPU: %d    %s  (%s %.*s)",
 		raw_smp_processor_id(), print_tainted(),
 		init_utsname()->release,
 		(int)strcspn(init_utsname()->version, " "),
 		init_utsname()->version);
-	sprint_symbol(sec_debug_info[1], instruction_pointer(regs));
-	sprint_symbol(sec_debug_info[2], regs->ARM_lr);
-	sprintf(sec_debug_info[3],"pc : [<%08lx>]    lr : [<%08lx>]    psr: %08lx",
+	sprint_symbol(sec_debug_info.debug_info_str[1], instruction_pointer(regs));
+	sprint_symbol(sec_debug_info.debug_info_str[2], regs->ARM_lr);
+	sprintf(sec_debug_info.debug_info_str[3],"pc : [<%08lx>]    lr : [<%08lx>]    psr: %08lx",
 		regs->ARM_pc, regs->ARM_lr, regs->ARM_cpsr);
-	sprintf(sec_debug_info[4],"sp : %08lx  ip : %08lx  fp : %08lx",
+	sprintf(sec_debug_info.debug_info_str[4],"sp : %08lx  ip : %08lx  fp : %08lx",
 		regs->ARM_sp, regs->ARM_ip, regs->ARM_fp);
-	sprintf(sec_debug_info[5],"r10: %08lx  r9 : %08lx  r8 : %08lx",
+	sprintf(sec_debug_info.debug_info_str[5],"r10: %08lx  r9 : %08lx  r8 : %08lx",
 		regs->ARM_r10, regs->ARM_r9,
 		regs->ARM_r8);
-	sprintf(sec_debug_info[6],"r7 : %08lx  r6 : %08lx  r5 : %08lx  r4 : %08lx",
+	sprintf(sec_debug_info.debug_info_str[6],"r7 : %08lx  r6 : %08lx  r5 : %08lx  r4 : %08lx",
 		regs->ARM_r7, regs->ARM_r6,
 		regs->ARM_r5, regs->ARM_r4);
-	sprintf(sec_debug_info[7],"r3 : %08lx  r2 : %08lx  r1 : %08lx  r0 : %08lx",
+	sprintf(sec_debug_info.debug_info_str[7],"r3 : %08lx  r2 : %08lx  r1 : %08lx  r0 : %08lx",
 		regs->ARM_r3, regs->ARM_r2,
 		regs->ARM_r1, regs->ARM_r0);
 #endif
@@ -353,7 +356,7 @@ void __show_regs(struct pt_regs *regs)
 		isa_modes[isa_mode(regs)],
 		get_fs() == get_ds() ? "kernel" : "user");
 #ifdef CONFIG_KERNEL_DEBUG_SEC
-	sprintf(sec_debug_info[8],"Flags: %s  IRQs o%s  FIQs o%s  Mode %s  ISA %s  Segment %s",
+	sprintf(sec_debug_info.debug_info_str[8],"Flags: %s  IRQs o%s  FIQs o%s  Mode %s  ISA %s  Segment %s",
 		buf, interrupts_enabled(regs) ? "n" : "ff",
 		fast_interrupts_enabled(regs) ? "n" : "ff",
 		processor_modes[processor_mode(regs)],
@@ -379,7 +382,7 @@ void __show_regs(struct pt_regs *regs)
 
 		printk("Control: %08x%s\n", ctrl, buf);
 #ifdef CONFIG_KERNEL_DEBUG_SEC
-	sprintf(sec_debug_info[9],"Control: %08x%s\n", ctrl, buf);
+	sprintf(sec_debug_info.debug_info_str[9],"Control: %08x%s\n", ctrl, buf);
 #endif
 	}
 #endif
@@ -547,3 +550,4 @@ unsigned long get_wchan(struct task_struct *p)
 	} while (count ++ < 16);
 	return 0;
 }
+

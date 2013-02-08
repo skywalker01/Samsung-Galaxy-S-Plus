@@ -42,6 +42,30 @@ initrd_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x01200000
 endif
 endif
 
+ifeq ($(CONFIG_MACH_APACHE),y)
+ifeq ($(CONFIG_APPSBOOT_3M_CONFIG),y)
+   zreladdr-$(CONFIG_ARCH_MSM7X30)	:= 0x00408000
+params_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x00400100
+initrd_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x01400000
+else
+   zreladdr-$(CONFIG_ARCH_MSM7X30)	:= 0x00208000
+params_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x00200100
+initrd_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x01200000
+endif
+endif
+
+ifeq ($(CONFIG_MACH_ANCORA_TMO),y)
+ifeq ($(CONFIG_APPSBOOT_3M_CONFIG),y)
+   zreladdr-$(CONFIG_ARCH_MSM7X30)	:= 0x00408000
+params_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x00400100
+initrd_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x01400000
+else
+   zreladdr-$(CONFIG_ARCH_MSM7X30)	:= 0x00208000
+params_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x00200100
+initrd_phys-$(CONFIG_ARCH_MSM7X30)	:= 0x01200000
+endif
+endif
+
 ifeq ($(CONFIG_MACH_GODART),y)
 ifeq ($(CONFIG_APPSBOOT_3M_CONFIG),y)
    zreladdr-$(CONFIG_ARCH_MSM7X30)	:= 0x00408000

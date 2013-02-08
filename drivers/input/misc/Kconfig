@@ -445,6 +445,13 @@ config INPUT_PMIC8058_VIBRA_MEMLESS
 	  To compile this driver as module, choose M here: the
 	  module will be called pmic8058-vib-memless.
 
+config BOSCH_BMA150
+        tristate "SMB380/BMA150 acceleration sensor support"
+        depends on I2C=y
+        help
+          If you say yes here you get support for Bosch Sensortec's
+          acceleration sensors SMB380/BMA150.
+
 config SENSORS_BMA023_ACCEL
 	tristate "Bosch BMA023 Acceleration Sensor"
 	depends on I2C
@@ -500,5 +507,20 @@ config GYRO_L3G4200D
 	default n
 	help
 	  This option enables gyro sensors using L3G4200D driver
+
+config SENSORS_AK8975
+	tristate "AK8975 compass support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  orientation sensor AK8975.
+
+config GYRO_K3G
+	tristate "K3G driver for s5pc210"
+	default n
+	depends on I2C
+	help
+	  This option enables gyro sensors using K3G driver.
 
 endif

@@ -485,6 +485,13 @@ struct msm_snapshot_pp_status {
 #define CFG_SEND_WB_INFO    28
 #define CFG_MAX 			29
 
+#ifndef CONFIG_MACH_ARIESVE
+//pault
+#define CFG_SET_EXPOSURE_VALUE 30
+#define CFG_SET_ROTATION 31
+#define CFG_SET_DATALINE_CHECK 32
+#endif
+
 #define MOVE_NEAR	0
 #define MOVE_FAR	1
 
@@ -550,6 +557,13 @@ struct sensor_cfg_data {
 		uint16_t pictp_pl;
 		uint32_t pict_max_exp_lc;
 		uint16_t p_fps;
+#ifndef CONFIG_MACH_ARIESVE
+//pault
+		int8_t ev;
+		int8_t wb;
+		int8_t rotation;
+		int8_t dataline;
+#endif
 		struct sensor_pict_fps gfps;
 		struct exp_gain_cfg exp_gain;
 		struct focus_cfg focus;
@@ -609,6 +623,9 @@ typedef struct{
 	uint32_t cmd;
 	uint32_t  value_1;
 	uint32_t  value_2;
+#ifndef CONFIG_MACH_ARIESVE
+    uint32_t  value_3;//pault
+#endif
 	void* p;
 } sensor_ext_cfg_data;
 
@@ -685,9 +702,19 @@ int mc7_sensor_ext_config(void __user *arg);
 int ce147_sensor_ext_config(void __user *arg);
 int s5ka3dfx_sensor_ext_config(void __user *arg);
 int s5k4ecgx_sensor_ext_config(void __user *arg);
+#ifndef CONFIG_MACH_ARIESVE
+int s5k4ecgx_sensor_esd_detected();
+int s5k5ccaf_sensor_esd_detected(); //ESD
+int sr030pc30_sensor_esd_detected(); //ESD
+#endif
 int ce147_get_fw_data(void __user *arg);
 int sr030pc30_sensor_ext_config(void __user *argp);
-
+#ifndef CONFIG_MACH_ARIESVE
+int s5k5ccaf_sensor_ext_config(void __user *arg);
+#ifdef CONFIG_SENSOR_SR130PC10
+int sr130pc10_sensor_ext_config(void __user *argp);
+#endif
+#endif
 #define MSM_CAM_IOCTL_EXT_CONFIG  _IOWR(MSM_CAM_IOCTL_MAGIC, 50, sensor_ext_cfg_data)
 #define MSM_CAM_IOCTL_FIRMWARE_UPDATE  _IOWR(MSM_CAM_IOCTL_MAGIC, 51, sensor_ext_cfg_data)
 #define MSM_CAM_IOCTL_READ_VERSION_INFO  _IOWR(MSM_CAM_IOCTL_MAGIC, 52, struct sensor_firmware_info)
@@ -756,6 +783,9 @@ enum ext_cfg_command
     EXT_CFG_GET_VGACAM_ROTATED, // kurtlee
     EXT_CFG_TEST_ESD,
     EXT_CFG_MAX,
+#ifndef CONFIG_MACH_ARIESVE
+    EXT_CFG_TEMP, //TELECA_BATTERY
+#endif
 };
 
 enum ext_cfg_command_cammode
@@ -805,7 +835,11 @@ enum ext_cfg_command_whitebalance
 
 enum ext_cfg_command_brightness
 {
+#ifdef CONFIG_MACH_ARIESVE
 	EXT_CFG_BR_STEP_M_4,
+#else
+	EXT_CFG_BR_STEP_M_4 = -4,
+#endif
 	EXT_CFG_BR_STEP_M_3,
 	EXT_CFG_BR_STEP_M_2,
 	EXT_CFG_BR_STEP_M_1,
@@ -940,15 +974,31 @@ enum ext_cfg_command_zoom
 enum ext_cfg_command_picture_size
 {
 	EXT_CFG_SNAPSHOT_SIZE_2560x1920_5M,
+#ifndef CONFIG_MACH_ARIESVE
+	EXT_CFG_SNAPSHOT_SIZE_2560x1536_4M_WIDE,
+#endif
 	EXT_CFG_SNAPSHOT_SIZE_2048x1536_3M,
+#ifndef CONFIG_MACH_ARIESVE
+	EXT_CFG_SNAPSHOT_SIZE_2048x1232_2_4M_WIDE,
+#endif
 	EXT_CFG_SNAPSHOT_SIZE_1600x1200_2M,
+#ifndef CONFIG_MACH_ARIESVE
+	EXT_CFG_SNAPSHOT_SIZE_1600x960_1_5M_WIDE,
+#endif
 	EXT_CFG_SNAPSHOT_SIZE_1280x960_1M,
+#ifndef CONFIG_MACH_ARIESVE
+	EXT_CFG_SNAPSHOT_SIZE_800x480_4K_WIDE,
+#endif
 	EXT_CFG_SNAPSHOT_SIZE_640x480_VGA,
 	EXT_CFG_SNAPSHOT_SIZE_320x240_QVGA,
 };
 
 enum ext_cfg_command_preview_size
 {
+#ifndef CONFIG_MACH_ARIESVE
+      EXT_CFG_PREVIEW_SIZE_1280x720_D1,
+	EXT_CFG_PREVIEW_SIZE_800x480_WVGA,
+#endif
 	EXT_CFG_PREVIEW_SIZE_720x480_D1,
 	EXT_CFG_PREVIEW_SIZE_640x480_VGA,
 	EXT_CFG_PREVIEW_SIZE_320x240_QVGA,
@@ -963,6 +1013,31 @@ enum ext_cfg_command_flash
 	EXT_CFG_FLASH_TURN_ON,
 	EXT_CFG_FLASH_TURN_OFF,
 };
+#ifndef CONFIG_MACH_ARIESVE
+//pault
+enum ext_cfg_command_exposure
+{
+  CAMERA_EXPOSURE_NEGATIVE_2,
+  CAMERA_EXPOSURE_NEGATIVE_1,
+  CAMERA_EXPOSURE_0,
+  CAMERA_EXPOSURE_POSITIVE_1,
+  CAMERA_EXPOSURE_POSITIVE_2
+};
+
+enum ext_cfg_command_wb
+{
+  CAMERA_WB_MIN_MINUS_1,
+  CAMERA_WB_AUTO = 1,  /* This list must match aeecamera.h */
+  CAMERA_WB_CUSTOM,
+  CAMERA_WB_INCANDESCENT,
+  CAMERA_WB_FLUORESCENT,
+  CAMERA_WB_DAYLIGHT,
+  CAMERA_WB_CLOUDY_DAYLIGHT,
+  CAMERA_WB_TWILIGHT,
+  CAMERA_WB_SHADE,
+  CAMERA_WB_MAX_PLUS_1
+};
+#endif
 #endif /* CONFIG_OEM_CAMERA */
 
 #endif /* __LINUX_MSM_CAMERA_H */

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008-2010, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -68,7 +68,7 @@ unsigned crci_mask;
 #define VERBOSE 0
 
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 unsigned cp_area_start_page = 0;
 unsigned cp_area_end_page = 0;
 static unsigned CFG0_M, CFG1_M, ECC_CFG_M;
@@ -527,7 +527,7 @@ uint32_t flash_onfi_probe(struct msm_nand_chip *chip)
 		return err;
 	}
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	for ( i = 0 ; i < msm_nand_data.nr_parts ; i++) {
 		if (!strcmp(msm_nand_data.parts[i].name , "parameter")) {
 			param_start_block = msm_nand_data.parts[i].offset + 4;
@@ -817,7 +817,7 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from,
 	unsigned cwperpage;
 	unsigned modem_partition = 0;
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	//For fota enginge access to cp partition
 	if( from >= cp_area_start_page && from <= cp_area_end_page )
 	{
@@ -1110,12 +1110,20 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from,
 
 			}
 			if (ops->oobbuf) {
+				dma_sync_single_for_cpu(chip->dev,
+				oob_dma_addr_curr - (ops->ooblen - oob_len),
+				ops->ooblen - oob_len, DMA_BIDIRECTIONAL);
+
 				for (n = 0; n < ops->ooblen; n++) {
 					if (ops->oobbuf[n] != 0xff) {
 						pageerr = rawerr;
 						break;
 					}
 				}
+
+				dma_sync_single_for_device(chip->dev,
+				oob_dma_addr_curr - (ops->ooblen - oob_len),
+				ops->ooblen - oob_len, DMA_BIDIRECTIONAL);
 			}
 		}
 		if (pageerr) {
@@ -1404,7 +1412,7 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 		/* config ebi2 cfg reg for pingpong ( 0xA000_0004 ) */
 		dma_buffer->data.ebi2_cfg = 0x4010080;
 		dma_buffer->data.ebi2_cfg_default = 0x4010080;
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 		dma_buffer->data.ebi2_chip_select_cfg0 = 0x00000809;
 		dma_buffer->data.default_ebi2_chip_select_cfg0 = 0x00000809;
 #else
@@ -1918,12 +1926,20 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 
 			}
 			if (ops->oobbuf) {
+				dma_sync_single_for_cpu(chip->dev,
+				oob_dma_addr_curr - (ops->ooblen - oob_len),
+				ops->ooblen - oob_len, DMA_BIDIRECTIONAL);
+
 				for (n = 0; n < ops->ooblen; n++) {
 					if (ops->oobbuf[n] != 0xff) {
 						pageerr = rawerr;
 						break;
 					}
 				}
+
+				dma_sync_single_for_device(chip->dev,
+				oob_dma_addr_curr - (ops->ooblen - oob_len),
+				ops->ooblen - oob_len, DMA_BIDIRECTIONAL);
 			}
 		}
 		if (pageerr) {
@@ -2110,7 +2126,7 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 	unsigned cwperpage;
 	unsigned modem_partition = 0;;
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	//For fota enginge access to cp partition
 	if( to >= cp_area_start_page && to <= cp_area_end_page ) //CHJ
 	{
@@ -2546,7 +2562,7 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 	wait_event(chip->wait_queue, (dma_buffer =
 			msm_nand_get_dma_buffer(chip, sizeof(*dma_buffer))));
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	dma_buffer->data.ebi2_chip_select_cfg0 = 0x00000809;
 	dma_buffer->data.default_ebi2_chip_select_cfg0 = 0x00000809;
 #else
@@ -3244,7 +3260,7 @@ msm_nand_erase_dualnandc(struct mtd_info *mtd, struct erase_info *instr)
 	dma_buffer->data[10] = 0x00000020;
 	dma_buffer->data[11] = 0x000000C0;
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	dma_buffer->ebi2_chip_select_cfg0 = 0x00000809;
 	dma_buffer->default_ebi2_chip_select_cfg0 = 0x00000809;
 #else
@@ -3398,7 +3414,7 @@ msm_nand_erase_dualnandc(struct mtd_info *mtd, struct erase_info *instr)
 	return err;
 }
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 void msm_write_param(struct ariesve_parameter *param_data)
 {
 	int ret;
@@ -3663,7 +3679,7 @@ msm_nand_block_isbad_dualnandc(struct mtd_info *mtd, loff_t ofs)
 	dma_buffer->data.result[1].flash_status = 0xeeeeeeee;
 	dma_buffer->data.result[1].buffer_status = 0xeeeeeeee;
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	dma_buffer->data.ebi2_chip_select_cfg0 = 0x00000809;
 	dma_buffer->data.default_ebi2_chip_select_cfg0 = 0x00000809;
 #else
@@ -3872,7 +3888,7 @@ msm_nand_block_markbad(struct mtd_info *mtd, loff_t ofs)
 	return ret;
 }
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 void msm_read_param(struct ariesve_parameter *param_data)
 {
 	int ret;
@@ -6849,7 +6865,7 @@ int msm_nand_scan(struct mtd_info *mtd, int maxchips)
 		return -ENODEV;
 	}
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	//AP partition------------------------------------------------
 	CFG0_A = (((mtd_writesize >> 9)-1) << 6) /* 4/8 cw/pg for 2/4k */
 		|  (516 <<  9)  /* 516 user data bytes */
@@ -7118,7 +7134,7 @@ static int __devinit msm_nand_probe(struct platform_device *pdev)
 		goto no_dual_nand_ctlr_support;
 	ebi2_register_base = res->start;
 
-#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART)
+#if defined(CONFIG_MACH_ARIESVE) || defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_GODART) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 	dual_nand_ctlr_present = 0; // EBI2_CS1 for SIDE_LOADING CHIP
 #else
 	dual_nand_ctlr_present = 1;

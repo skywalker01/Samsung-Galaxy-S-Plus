@@ -383,19 +383,6 @@ static struct ctl_table kern_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
-
-#ifdef CONFIG_SCHED_AUTOGROUP
-	{
-	.procname  = "sched_autogroup_enabled",
-	.data    = &sysctl_sched_autogroup_enabled,
-	.maxlen    = sizeof(unsigned int),
-	.mode    = 0644,
-	.proc_handler  = proc_dointvec,
-	.extra1    = &zero,
-	.extra2    = &one,
-	},
-#endif
-
 #ifdef CONFIG_PROVE_LOCKING
 	{
 		.procname	= "prove_locking",
@@ -1031,7 +1018,7 @@ static struct ctl_table vm_table[] = {
 		.procname	= "dirty_background_ratio",
 		.data		= &dirty_background_ratio,
 		.maxlen		= sizeof(dirty_background_ratio),
-		.mode		= 0777,
+		.mode		= 0644,
 		.proc_handler	= dirty_background_ratio_handler,
 		.extra1		= &zero,
 		.extra2		= &one_hundred,
@@ -1072,7 +1059,7 @@ static struct ctl_table vm_table[] = {
 		.procname	= "dirty_expire_centisecs",
 		.data		= &dirty_expire_interval,
 		.maxlen		= sizeof(dirty_expire_interval),
-		.mode		= 0777,
+		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
 	{

@@ -298,10 +298,13 @@
 #ifdef CONFIG_USB_ANDROID_MASS_STORAGE
 #include <linux/usb/android_composite.h>
 #include <linux/platform_device.h>
-
-#define FUNCTION_NAME		"usb_mass_storage"
 #endif
 
+static ulong fsg_nofua = 1;
+module_param(fsg_nofua, ulong, S_IRUGO);
+MODULE_PARM_DESC(fsg_nofua, "FUA Flag state in SCSI WRITE");
+
+#define FUNCTION_NAME		"usb_mass_storage"
 /*------------------------------------------------------------------------*/
 
 #define FSG_DRIVER_DESC		"Mass Storage Function"
@@ -398,6 +401,7 @@ struct fsg_config {
 		char ro;
 		char removable;
 		char cdrom;
+		char nofua;
 	} luns[FSG_MAX_LUNS];
 
 	const char		*lun_name_format;
@@ -892,7 +896,7 @@ int      i;
 			return -EINVAL;
 		}
 #ifndef CONFIG_USB_ANDROID_MASS_STORAGE
-		if (common->cmnd[1] & 0x08) {	/* FUA */
+		if (!curlun->nofua && (common->cmnd[1] & 0x08)) {/* FUA */
 			spin_lock(&curlun->filp->f_lock);
 			curlun->filp->f_flags |= O_SYNC;
 			spin_unlock(&curlun->filp->f_lock);
@@ -1511,7 +1515,7 @@ static int do_prevent_allow(struct fsg_common *common)
 		return -EINVAL;
 	}
 
-	if (curlun->prevent_medium_removal && !prevent)
+	if (!curlun->nofua && curlun->prevent_medium_removal && !prevent)
 		fsg_lun_fsync_sub(curlun);
 	curlun->prevent_medium_removal = prevent;
 	return 0;
@@ -1826,7 +1830,7 @@ static int send_status(struct fsg_common *common)
 	 */
 	if (write_error_after_csw_sent) {
 		write_error_after_csw_sent = 0;
-		csw->Residue = cpu_to_le32(common->residue);
+	csw->Residue = cpu_to_le32(common->residue);
 	} else
 		csw->Residue = 0;
 #else
@@ -2714,7 +2718,7 @@ static int fsg_main_thread(void *common_)
 /* Write permission is checked per LUN in store_*() functions. */
 static DEVICE_ATTR(ro, 0644, fsg_show_ro, fsg_store_ro);
 static DEVICE_ATTR(file, 0644, fsg_show_file, fsg_store_file);
-
+static DEVICE_ATTR(nofua, 0644, fsg_show_nofua, fsg_store_nofua);
 
 /****************************** FSG COMMON ******************************/
 
@@ -2798,6 +2802,7 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 		curlun->ro = lcfg->cdrom || lcfg->ro;
 		curlun->removable = lcfg->removable;
 		curlun->dev.release = fsg_lun_release;
+		curlun->nofua = lcfg->nofua;
 
 #ifdef CONFIG_USB_ANDROID_MASS_STORAGE
 		/* use "usb_mass_storage" platform device as parent */
@@ -2824,6 +2829,9 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 		if (rc)
 			goto error_luns;
 		rc = device_create_file(&curlun->dev, &dev_attr_file);
+		if (rc)
+			goto error_luns;
+		rc = device_create_file(&curlun->dev, &dev_attr_nofua);
 		if (rc)
 			goto error_luns;
 
@@ -2970,6 +2978,7 @@ static void fsg_common_release(struct kref *ref)
 
 		/* In error recovery common->nluns may be zero. */
 		for (; i; --i, ++lun) {
+			device_remove_file(&lun->dev, &dev_attr_nofua);
 			device_remove_file(&lun->dev, &dev_attr_ro);
 			device_remove_file(&lun->dev, &dev_attr_file);
 			fsg_lun_close(lun);
@@ -3233,13 +3242,14 @@ static int fsg_probe(struct platform_device *pdev)
 	if (nluns > FSG_MAX_LUNS)
 		nluns = FSG_MAX_LUNS;
 	fsg_cfg.nluns = nluns;
-	for (i = 0; i < nluns; i++)
+	for (i = 0; i < nluns; i++) {
 		fsg_cfg.luns[i].removable = 1;
-
+		fsg_cfg.luns[i].nofua = fsg_nofua;
+	}
 	fsg_cfg.vendor_name = pdata->vendor;
 	fsg_cfg.product_name = pdata->product;
 	fsg_cfg.release = pdata->release;
-	fsg_cfg.can_stall = 0;
+	fsg_cfg.can_stall = pdata->can_stall;
 	fsg_cfg.pdev = pdev;
 
 	return 0;

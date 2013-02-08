@@ -72,7 +72,9 @@ extern struct kobject *cpufreq_global_kobject;
 struct cpufreq_cpuinfo {
 	unsigned int		max_freq;
 	unsigned int		min_freq;
-	unsigned int		transition_latency; /* in 10^(-9) s = nanoseconds */
+
+	/* in 10^(-9) s = nanoseconds */
+	unsigned int		transition_latency;
 };
 
 struct cpufreq_real_policy {
@@ -180,7 +182,8 @@ struct cpufreq_governor {
 	struct module		*owner;
 };
 
-/* pass a target to the cpufreq driver
+/*
+ * Pass a target to the cpufreq driver.
  */
 extern int cpufreq_driver_target(struct cpufreq_policy *policy,
 				 unsigned int target_freq,
@@ -196,11 +199,8 @@ extern int __cpufreq_driver_getavg(struct cpufreq_policy *policy,
 int cpufreq_register_governor(struct cpufreq_governor *governor);
 void cpufreq_unregister_governor(struct cpufreq_governor *governor);
 
-int lock_policy_rwsem_read(int cpu);
 int lock_policy_rwsem_write(int cpu);
-void unlock_policy_rwsem_read(int cpu);
 void unlock_policy_rwsem_write(int cpu);
-
 
 /*********************************************************************
  *                      CPUFREQ DRIVER INTERFACE                     *
@@ -235,7 +235,7 @@ struct cpufreq_driver {
 	int	(*bios_limit)	(int cpu, unsigned int *limit);
 
 	int	(*exit)		(struct cpufreq_policy *policy);
-	int	(*suspend)	(struct cpufreq_policy *policy, pm_message_t pmsg);
+	int	(*suspend)	(struct cpufreq_policy *policy);
 	int	(*resume)	(struct cpufreq_policy *policy);
 	struct freq_attr	**attr;
 };
@@ -286,18 +286,9 @@ __ATTR(_name, 0444, show_##_name, NULL)
 static struct freq_attr _name =			\
 __ATTR(_name, _perm, show_##_name, NULL)
 
-#define cpufreq_freq_attr_ro_old(_name)		\
-static struct freq_attr _name##_old =		\
-__ATTR(_name, 0444, show_##_name##_old, NULL)
-
 #define cpufreq_freq_attr_rw(_name)		\
 static struct freq_attr _name =			\
 __ATTR(_name, 0644, show_##_name, store_##_name)
-
-#define cpufreq_freq_attr_rw_old(_name)		\
-static struct freq_attr _name##_old =		\
-__ATTR(_name, 0644, show_##_name##_old, store_##_name##_old)
-
 
 struct global_attr {
 	struct attribute attr;
@@ -369,6 +360,9 @@ extern struct cpufreq_governor cpufreq_gov_ondemand;
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_CONSERVATIVE)
 extern struct cpufreq_governor cpufreq_gov_conservative;
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_conservative)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE)
+extern struct cpufreq_governor cpufreq_gov_interactive;
+#define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_interactive)
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTASS2)
 extern struct cpufreq_governor cpufreq_gov_smartass2;
 #define CPUFREQ_DEFAULT_GOVERNOR  (&cpufreq_gov_smartass2)
@@ -419,24 +413,5 @@ void cpufreq_frequency_table_get_attr(struct cpufreq_frequency_table *table,
 
 void cpufreq_frequency_table_put_attr(unsigned int cpu);
 
-
-/*********************************************************************
- *                     UNIFIED DEBUG HELPERS                         *
- *********************************************************************/
-
-#define CPUFREQ_DEBUG_CORE	1
-#define CPUFREQ_DEBUG_DRIVER	2
-#define CPUFREQ_DEBUG_GOVERNOR	4
-
-#ifdef CONFIG_CPU_FREQ_DEBUG
-
-extern void cpufreq_debug_printk(unsigned int type, const char *prefix,
-				 const char *fmt, ...);
-
-#else
-
-#define cpufreq_debug_printk(msg...) do { } while(0)
-
-#endif /* CONFIG_CPU_FREQ_DEBUG */
 
 #endif /* _LINUX_CPUFREQ_H */

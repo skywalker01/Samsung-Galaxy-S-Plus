@@ -140,12 +140,6 @@ struct clock_state {
 
 static struct clock_state drv_state = { 0 };
 
-unsigned long clk_get_max_axi_khz(void)
-{
-	return 192000;
-}
-EXPORT_SYMBOL(clk_get_max_axi_khz);
-
 unsigned long acpuclk_get_rate(int cpu)
 {
 	return drv_state.current_speed->acpuclk_khz;
@@ -270,7 +264,6 @@ int acpuclk_set_rate(int cpu, unsigned long rate, enum setrate_reason reason)
 {
 	struct clkctl_acpu_speed *tgt_s, *strt_s;
 	int res, rc = 0;
-	int freq_index = 0;
 
 	if (reason == SETRATE_CPUFREQ)
 		mutex_lock(&drv_state.lock);
@@ -280,11 +273,9 @@ int acpuclk_set_rate(int cpu, unsigned long rate, enum setrate_reason reason)
 	if (rate == strt_s->acpuclk_khz)
 		goto out;
 
-	for (tgt_s = acpu_freq_tbl; tgt_s->acpuclk_khz != 0; tgt_s++) {
+	for (tgt_s = acpu_freq_tbl; tgt_s->acpuclk_khz != 0; tgt_s++)
 		if (tgt_s->acpuclk_khz == rate)
 			break;
-		freq_index++;
-	}
 
 	if (tgt_s->acpuclk_khz == 0) {
 		rc = -EINVAL;

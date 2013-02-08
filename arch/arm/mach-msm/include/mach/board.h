@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/include/mach/board.h
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -83,6 +83,7 @@ struct msm_ce_hw_support {
 	uint32_t ce_shared;
 	uint32_t shared_ce_resource;
 	uint32_t hw_key_support;
+	uint32_t sha_hmac;
 };
 #endif
 
@@ -234,6 +235,17 @@ struct msm_adspdec_database {
 	struct dec_instance_table *dec_instance_list;
 };
 
+enum msm_mdp_hw_revision {
+	MDP_REV_20 = 1,
+	MDP_REV_22,
+	MDP_REV_30,
+	MDP_REV_303,
+	MDP_REV_31,
+	MDP_REV_40,
+	MDP_REV_41,
+	MDP_REV_42,
+};
+
 struct msm_panel_common_pdata {
 	uintptr_t hw_revision_addr;
 	int gpio;
@@ -249,6 +261,11 @@ struct msm_panel_common_pdata {
 #ifdef CONFIG_MSM_BUS_SCALING
 	struct msm_bus_scale_pdata *mdp_bus_scale_table;
 #endif
+	int mdp_rev;
+	u32 ov0_wb_size;  /* overlay0 writeback size */
+	u32 ov1_wb_size;  /* overlay1 writeback size */
+	u32 mem_hid;
+	char cont_splash_enabled;
 };
 
 struct lcdc_platform_data {
@@ -277,12 +294,18 @@ struct mddi_platform_data {
 struct mipi_dsi_platform_data {
 	int vsync_gpio;
 	int (*dsi_power_save)(int on);
+	int (*dsi_client_reset)(void);
+	int (*get_lane_config)(void);
+	int target_type;
 };
 
+#define PANEL_NAME_MAX_LEN 50
 struct msm_fb_platform_data {
 	int (*detect_client)(const char *name);
 	int mddi_prescan;
 	int (*allow_set_offset)(void);
+	char prim_panel_name[PANEL_NAME_MAX_LEN];
+	char ext_panel_name[PANEL_NAME_MAX_LEN];
 };
 
 struct msm_hdmi_platform_data {
@@ -293,6 +316,7 @@ struct msm_hdmi_platform_data {
 	int (*core_power)(int on, int show);
 	int (*cec_power)(int on);
 	int (*init_irq)(void);
+	bool (*check_hdcp_hw_support)(void);
 };
 
 struct msm_i2c_platform_data {
@@ -322,7 +346,11 @@ struct msm_ssbi_platform_data {
 	enum msm_ssbi_controller_type controller_type;
 };
 
-#ifdef CONFIG_USB_PEHCI_HCD
+struct msm_vidc_platform_data {
+	int disable_dmx;
+};
+
+#if defined(CONFIG_USB_PEHCI_HCD) || defined(CONFIG_USB_PEHCI_HCD_MODULE)
 struct isp1763_platform_data {
 	unsigned reset_gpio;
 	int (*setup_gpio)(int enable);
@@ -374,11 +402,25 @@ void msm_snddev_hsed_voltage_on(void);
 void msm_snddev_hsed_voltage_off(void);
 void msm_snddev_tx_route_config(void);
 void msm_snddev_tx_route_deconfig(void);
-#if defined(CONFIG_MACH_ANCORA)
+#if defined(CONFIG_MACH_ANCORA) || defined(CONFIG_MACH_ANCORA_TMO) || defined(CONFIG_MACH_APACHE)
 void msm_snddev_tx_ear_route_config(void);
 void msm_snddev_tx_ear_route_deconfig(void);
 #endif
 
+#ifdef CONFIG_VP_A2220
+void msm_snddev_audience_call_route_config(void);
+void msm_snddev_audience_call_route_deconfig(void);
+void msm_snddev_audience_call_route_speaker_config(void);
+void msm_snddev_audience_call_route_speaker_deconfig(void);
+int msm_snddev_audience_speaker_on(void);
+int msm_snddev_audience_speaker_off(void);
+void msm_snddev_audience_call_route_headset_config(void);
+void msm_snddev_audience_call_route_headset_deconfig(void);
+int msm_snddev_audience_poweramp_on_headset(void);
+void  msm_snddev_audience_poweramp_off_headset(void);
+int msm_snddev_setting_audience_call_connect(void);
+int msm_snddev_setting_audience_call_disconnect(void);
+#endif
 extern unsigned int msm_shared_ram_phys; /* defined in arch/arm/mach-msm/io.c */
 
 
